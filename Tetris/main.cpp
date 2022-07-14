@@ -34,6 +34,44 @@ int ConvertToRotatedIndex(int px, int py, int r)
 	return 0; // question: when would this ever occur?
 }
 
+/// <summary>
+/// Tetromino collision test
+/// </summary>
+/// <param name="nTetromino">the type of tetromino</param>
+/// <param name="nRotation">0 for 0, 1 for 90, 2 for 180, 3 for 270</param>
+/// <param name="nPosX">x-coord of top-left of piece in the field</param>
+/// <param name="nPosY">y-coord of top-left of piece in the field</param>
+/// <returns></returns>
+bool DoesPieceFit(int nTetromino, int nRotation, int nPosX, int nPosY)
+{
+	// Iterate through the entire tetromino piece (rotated accordingly) and check if it overlaps with anything
+	for (int px = 0; px < 4; px++)
+	{
+		for (int py = 0; py < 4; py++)
+		{
+			// Get index into piece
+			int pi = ConvertToRotatedIndex(px, py, nRotation);
+
+			// Get index into field
+			int fi = (nPosY + py) * nFieldWidth + (nPosX + px);
+
+			// First make sure we're not going out of bounds
+			if (nPosX + px >= 0 && nPosX + px < nFieldWidth)
+			{
+				if (nPosY + py >= 0 && nPosY + py < nFieldHeight)
+				{
+					// fail on first overlap
+					if (tetrominos[nTetromino][pi] == L'X' && pField[fi] != 0)
+					{
+						return false;
+					}
+				}
+			}
+		}
+	}
+	return true;
+}
+
 int main()
 {
 	// = is for when we draw the line, # is for borders
@@ -124,14 +162,27 @@ int main()
 	CONSOLE_SCREEN_BUFFER_INFO info;
 	COORD currentWindowSize;
 
+	/// Debug stuff
 	bool dbgSCSBS;
 	bool dbgSCWI;
 
 	/// Game loop
 	bool bGameOver = false;
 
+	int nCurrentPiece = 0;
+	int nCurrentRotation = 0;
+	int nCurrentX = nFieldWidth / 2;
+	int nCurrentY = 0;
+
 	while (!bGameOver)
 	{
+		/// GAME TIMING
+
+		/// INPUT (no events, do this old-school style)
+
+		/// GAME LOGIC
+
+		/// CHECK WINDOW
 		GetConsoleScreenBufferInfo(hConsole, &info);
 		currentWindowSize = GetLargestConsoleWindowSize(hConsole);
 		int dx = info.dwSize.X - nScreenWidth;
@@ -169,6 +220,7 @@ int main()
 			}
 		}
 
+		/// RENDER
 		// Draw the playing field
 		for (int x = 0; x < nFieldWidth; x++)
 		{
@@ -176,6 +228,23 @@ int main()
 			{
 				// we're adding + 2 to add some padding off from the very top-left of the console window
 				screen[(y + 2) * nScreenWidth + (x + 2)] = CHAR_SET[pField[y * nFieldWidth + x]];
+			}
+		}
+
+		// Since the current piece isn't part of the field yet, we draw it on top of the field after the field is drawn
+		// iterate thru entire piece
+		for (int px = 0; px < 4; px++)
+		{
+			for (int py = 0; py < 4; py++)
+			{
+				if (tetrominos[nCurrentPiece][ConvertToRotatedIndex(px, py, nCurrentRotation)] == L'X')
+				{
+					// x TODO: find a more elegant/less voodoo number magic way of doing this
+					// x nCurrentPiece + 65 lets us convert each piece (listed in order in the tetrominos array)
+					// x to give us ABCDEFG in ASCII, which is what the pieces will be drawn as
+					// x screen[(nCurrentY + py + 2) * nScreenWidth + (nCurrentX + px + 2)] = nCurrentPiece + 65;
+					screen[(nCurrentY + py + 2) * nScreenWidth + (nCurrentX + px + 2)] = CHAR_SET[nCurrentPiece + 1];
+				}
 			}
 		}
 
