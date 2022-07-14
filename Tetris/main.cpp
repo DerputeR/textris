@@ -1,10 +1,12 @@
 #include <iostream>
 #include <string>
 #include <Windows.h>
+#include <thread>
+#include <chrono>
 
 /// <summary>
 /// https://www.youtube.com/watch?v=8OK8_tHeCIA&list=PLrOv9FMX8xJE8NgepZR1etrsU63fDDGxO
-/// Current time: 8:17
+/// Current time: 20:55
 /// </summary>
 
 std::wstring tetrominos[7];
@@ -177,6 +179,9 @@ int main()
 	while (!bGameOver)
 	{
 		/// GAME TIMING
+		// 50 mspt -> 20 tps
+		// TODO: implement delta-time to prevent slow-downs
+		std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
 		/// INPUT (no events, do this old-school style)
 
