@@ -6,10 +6,11 @@
 
 /// <summary>
 /// https://www.youtube.com/watch?v=8OK8_tHeCIA&list=PLrOv9FMX8xJE8NgepZR1etrsU63fDDGxO
-/// Current time: 20:55
+/// Current time: 29:00
 /// </summary>
 
-std::wstring tetrominos[7];
+const int TETRONOMINO_COUNT = 7;
+std::wstring tetrominos[TETRONOMINO_COUNT];
 // TODO make this customizable at runtime
 int nFieldWidth = 12;
 int nFieldHeight = 18;
@@ -176,7 +177,11 @@ int main()
 	int nCurrentX = nFieldWidth / 2;
 	int nCurrentY = 0;
 
-	// Input tracking
+	int nTicksPerDrop = 20;
+	int nTickCounter = 0;
+	bool bForceDown = false;
+
+	/// Input tracking
 	bool bKey[4];
 	// rotate button locking to make rotations happen ONLY on initial key press
 	bool bRotateHold = false;
@@ -187,6 +192,8 @@ int main()
 		// 50 mspt -> 20 tps
 		// TODO: implement delta-time to prevent slow-downs
 		std::this_thread::sleep_for(std::chrono::milliseconds(50));
+		nTickCounter++;
+		bForceDown = (nTickCounter >= nTicksPerDrop);
 
 		/// INPUT (no events, do this old-school style)
 		// pulled from other console project vids
@@ -224,6 +231,34 @@ int main()
 		else // rotate lock
 		{
 			bRotateHold = false;
+		}
+		// forceful drop
+		if (bForceDown)
+		{
+			if (DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY + 1))
+			{
+				nCurrentY++;
+			}
+			else
+			{
+				/// lock current piece in the field
+
+				/// do we have any horizontals?
+
+				/// choose next piece
+				nCurrentRotation = 0;
+				nCurrentX = nFieldWidth / 2;
+				nCurrentY = 0;
+				nCurrentPiece = rand() % TETRONOMINO_COUNT; // we have 7 tetrominos
+
+				/// if next piece can't spawn, game over
+				bGameOver = !DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY);
+			}
+			nTickCounter = 0;
+		}
+		else
+		{
+
 		}
 
 		/// CHECK WINDOW
