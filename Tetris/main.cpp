@@ -176,6 +176,9 @@ int main()
 	int nCurrentX = nFieldWidth / 2;
 	int nCurrentY = 0;
 
+	// Input tracking
+	bool bKey[4];
+
 	while (!bGameOver)
 	{
 		/// GAME TIMING
@@ -184,8 +187,49 @@ int main()
 		std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
 		/// INPUT (no events, do this old-school style)
+		// pulled from other console project vids
+		for (int k = 0; k < 4; k++)
+		{
+			// loops thru array of 4 booleans representing the state of the keys
+			// uses the AsyncKeyState which checks if the button is pressed
+			// the function returns a short which acts as a BITFLAG
+			// according to https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getasynckeystate
+			// the most significant digit is 1 when the key is pressed; other bits may get set for other behavior,
+			// but we only want the first digit, so we bitmask it with 0x8000 to get a zero or non-zero (false or true)
+			// value for checking this specific bit
+																	// R   L   D   U				
+			// VK_RIGHT = 0x27
+			// VK_LEFT = 0x25
+			// VK_DOWN = 0x28
+			// VK_UP = 0x26
+			// TODO: Move key mapping array out of here so it is only created once and can be remapped at runtime
+			bKey[k] = (0x8000 & GetAsyncKeyState((unsigned char)("\x27\x25\x28\x26"[k])));
+		}
 
 		/// GAME LOGIC
+		// if right key pressed
+		if (bKey[0] && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX + 1, nCurrentY))
+		{
+			nCurrentX = nCurrentX + 1;
+		}
+
+		// if left key pressed
+		if (bKey[1] && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX - 1, nCurrentY))
+		{
+			nCurrentX = nCurrentX - 1;
+		}
+
+		// if down key pressed
+		if (bKey[2] && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY + 1))
+		{
+			nCurrentY = nCurrentY + 1;
+		}
+
+		// if rotate key pressed
+		if (bKey[3] && DoesPieceFit(nCurrentPiece, nCurrentRotation + 1, nCurrentX, nCurrentY))
+		{
+			nCurrentRotation++;
+		}
 
 		/// CHECK WINDOW
 		GetConsoleScreenBufferInfo(hConsole, &info);
