@@ -178,6 +178,8 @@ int main()
 
 	// Input tracking
 	bool bKey[4];
+	// rotate button locking to make rotations happen ONLY on initial key press
+	bool bRotateHold = false;
 
 	while (!bGameOver)
 	{
@@ -208,27 +210,20 @@ int main()
 
 		/// GAME LOGIC
 		// if right key pressed
-		if (bKey[0] && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX + 1, nCurrentY))
-		{
-			nCurrentX = nCurrentX + 1;
-		}
-
+		nCurrentX += (bKey[0] && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX + 1, nCurrentY)) ? 1 : 0;
 		// if left key pressed
-		if (bKey[1] && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX - 1, nCurrentY))
-		{
-			nCurrentX = nCurrentX - 1;
-		}
-
+		nCurrentX += (bKey[1] && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX - 1, nCurrentY)) ? -1 : 0;
 		// if down key pressed
-		if (bKey[2] && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY + 1))
-		{
-			nCurrentY = nCurrentY + 1;
-		}
-
+		nCurrentY += (bKey[2] && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY + 1)) ? 1 : 0;
 		// if rotate key pressed
-		if (bKey[3] && DoesPieceFit(nCurrentPiece, nCurrentRotation + 1, nCurrentX, nCurrentY))
+		if (bKey[3])
 		{
-			nCurrentRotation++;
+			nCurrentRotation += (!bRotateHold && DoesPieceFit(nCurrentPiece, nCurrentRotation + 1, nCurrentX, nCurrentY)) ? 1 : 0;
+			bRotateHold = true;
+		}
+		else // rotate lock
+		{
+			bRotateHold = false;
 		}
 
 		/// CHECK WINDOW
