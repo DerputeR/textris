@@ -182,7 +182,9 @@ int main()
 	bool bForceDown = false;
 
 	/// Input tracking
-	bool bKey[4];
+	// TODO better input mapping system
+	const int INPUT_COUNT = 5;
+	bool bKey[INPUT_COUNT];
 	// rotate button locking to make rotations happen ONLY on initial key press
 	bool bRotateHold = false;
 
@@ -197,7 +199,7 @@ int main()
 
 		/// INPUT (no events, do this old-school style)
 		// pulled from other console project vids
-		for (int k = 0; k < 4; k++)
+		for (int k = 0; k < INPUT_COUNT; k++)
 		{
 			// loops thru array of 4 booleans representing the state of the keys
 			// uses the AsyncKeyState which checks if the button is pressed
@@ -206,13 +208,14 @@ int main()
 			// the most significant digit is 1 when the key is pressed; other bits may get set for other behavior,
 			// but we only want the first digit, so we bitmask it with 0x8000 to get a zero or non-zero (false or true)
 			// value for checking this specific bit
-																	// R   L   D   U				
+																	// R   L   D   U	   _		
 			// VK_RIGHT = 0x27
 			// VK_LEFT = 0x25
 			// VK_DOWN = 0x28
 			// VK_UP = 0x26
+			// VK_SPACE = 0x20
 			// TODO: Move key mapping array out of here so it is only created once and can be remapped at runtime
-			bKey[k] = (0x8000 & GetAsyncKeyState((unsigned char)("\x27\x25\x28\x26"[k])));
+			bKey[k] = (0x8000 & GetAsyncKeyState((unsigned char)("\x27\x25\x28\x26\x20"[k])));
 		}
 
 		/// GAME LOGIC
@@ -243,7 +246,17 @@ int main()
 		{
 			bRotateHold = false;
 		}
-		// forceful drop
+		// snap down key
+		if (bKey[4])
+		{
+			while (DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY + 1))
+			{
+				nCurrentY++;
+			}
+			bForceDown = true;
+		}
+
+		// "gravity"
 		if (bForceDown)
 		{
 			if (DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY + 1))
