@@ -221,7 +221,18 @@ int main()
 		// if left key pressed
 		nCurrentX += (bKey[1] && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX - 1, nCurrentY)) ? -1 : 0;
 		// if down key pressed
-		nCurrentY += (bKey[2] && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY + 1)) ? 1 : 0;
+		if (bKey[2])
+		{
+			if (DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY + 1))
+			{
+				nCurrentY += 1;
+			}
+			else
+			{
+				// manual force down when the piece can move no further down and the down key is pressed
+				bForceDown = true;
+			}
+		}
 		// if rotate key pressed
 		if (bKey[3])
 		{
