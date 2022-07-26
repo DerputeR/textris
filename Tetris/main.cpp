@@ -1,4 +1,4 @@
-#include <iostream>
+﻿#include <iostream>
 #include <string>
 #include <Windows.h>
 #include <thread>
@@ -12,7 +12,7 @@
 
 const int TETROMINO_COUNT = 7;
 std::wstring tetrominos[TETROMINO_COUNT];
-const wchar_t CHAR_SET[11] = L" ABCDEFG=#";
+const wchar_t CHAR_SET[11] = L" ███████=#";
 std::vector<int> vCurrentPieces;
 
 // TODO make this customizable at runtime
@@ -28,6 +28,10 @@ bool bLockedScreenSize = false;
 
 // we will store the elements of the playing field in an array of unsigned characters, allocated dynamically
 unsigned char* pField = nullptr;
+
+// todo: reference https://brianrackle.github.io/update/c++/2014/08/03/easy-timing/
+const int TICKRATE = 20;
+double delta_time = 0.0;
 
 
 void InitPieces(std::wstring (& tetrominos)[TETROMINO_COUNT])
@@ -253,10 +257,11 @@ int main()
 
 	while (!bGameOver)
 	{
+		
 		/// GAME TIMING
 		// 50 mspt -> 20 tps
 		// TODO: implement delta-time to prevent slow-downs
-		std::this_thread::sleep_for(std::chrono::milliseconds(50));
+		std::this_thread::sleep_for(std::chrono::milliseconds(1000/TICKRATE));
 
 		if (!bLinePause)
 		{
@@ -300,11 +305,12 @@ int main()
 				if (DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY + 1))
 				{
 					nCurrentY += 1;
+					nDropTickCounter = 0; // prevent gravity from firing while soft dropping
 				}
 				else
 				{
 					// manual force down when the piece can move no further down and the down key is pressed
-					// bForceDown = true;
+					bForceDown = true;
 				}
 			}
 			// if rotate key pressed
@@ -478,13 +484,16 @@ int main()
 		}
 
 		/// RENDER
+		//! NOTE THAT DUE TO HOW CMD.exe RENDERS STUFF, I'M MAKING THE PLAYING AREA DOUBLE WIDTH
 		// Draw the playing field
 		for (int x = 0; x < nFieldWidth; x++)
 		{
 			for (int y = 0; y < nFieldHeight; y++)
 			{
 				// we're adding + 2 to add some padding off from the very top-left of the console window
-				screen[(y + 2) * nScreenWidth + (x + 2)] = CHAR_SET[pField[y * nFieldWidth + x]];
+				// screen[(y + 2) * nScreenWidth + (x + 2)] = CHAR_SET[pField[y * nFieldWidth + x]];
+				screen[(y + 2) * nScreenWidth + ((2 * x) + 2)] = CHAR_SET[pField[y * nFieldWidth + x]];
+				screen[(y + 2) * nScreenWidth + ((2 * x + 1) + 2)] = CHAR_SET[pField[y * nFieldWidth + x]];
 			}
 		}
 
@@ -503,7 +512,9 @@ int main()
 						// x nCurrentPiece + 65 lets us convert each piece (listed in order in the tetrominos array)
 						// x to give us ABCDEFG in ASCII, which is what the pieces will be drawn as
 						// x screen[(nCurrentY + py + 2) * nScreenWidth + (nCurrentX + px + 2)] = nCurrentPiece + 65;
-						screen[(nCurrentY + py + 2) * nScreenWidth + (nCurrentX + px + 2)] = CHAR_SET[nCurrentPiece + 1];
+						// screen[(nCurrentY + py + 2) * nScreenWidth + (nCurrentX + px + 2)] = CHAR_SET[nCurrentPiece + 1];
+						screen[(nCurrentY + py + 2) * nScreenWidth + (2 * (nCurrentX + px) + 2)] = CHAR_SET[nCurrentPiece + 1];
+						screen[(nCurrentY + py + 2) * nScreenWidth + (2 * (nCurrentX + px) + 1 + 2)] = CHAR_SET[nCurrentPiece + 1];
 					}
 				}
 			}
@@ -512,26 +523,28 @@ int main()
 		// Draw the score
 		// ! buffer size must be 16 since every string has a hidden \0 terminating character at the end
 		// 2 chars out from left, 2 rows down, 2 chars out from field
-		swprintf_s(&screen[2 + (2 * nScreenWidth) + nFieldWidth + 2], 16, L"Score: %-8d", nScore);
+		swprintf_s(&screen[2 + (2 * nScreenWidth) + 2 * nFieldWidth + 4], 16, L"Score: %-8d", nScore);
+		screen[2 + (2 * nScreenWidth) + 2 * nFieldWidth + 4 + 15] = L' '; // remove \0 char
 
 		// Draw the next upcoming piece
 		// 2 chars out from left, 4 rows down, 2 chars out from field
-		swprintf_s(&screen[2 + (4 * nScreenWidth) + nFieldWidth + 2], 12, L"Next piece:");
+		swprintf_s(&screen[2 + (4 * nScreenWidth) + 2 * nFieldWidth + 4], 12, L"Next piece:");
+		screen[2 + (4 * nScreenWidth) + 2 * nFieldWidth + 4 + 11] = L' '; // remove \0 char
 		for (int px = 0; px < 4; px++)
 		{
 			for (int py = 0; py < 4; py++)
 			{
 				if (tetrominos[vCurrentPieces.back()][ConvertToRotatedIndex(px, py, 0)] == L'X')
 				{
-					// x TODO: find a more elegant/less voodoo number magic way of doing this
-					// x nCurrentPiece + 65 lets us convert each piece (listed in order in the tetrominos array)
-					// x to give us ABCDEFG in ASCII, which is what the pieces will be drawn as
-					// x screen[(nCurrentY + py + 2) * nScreenWidth + (nCurrentX + px + 2)] = nCurrentPiece + 65;
-					screen[((py + 6) * nScreenWidth) + (nFieldWidth + px + 6)] = CHAR_SET[vCurrentPieces.back() + 1];
+					// screen[((py + 6) * nScreenWidth) + (nFieldWidth + px + 6)] = CHAR_SET[vCurrentPieces.back() + 1];
+					screen[((py + 6) * nScreenWidth) + (2 * (nFieldWidth + px) + 6)] = CHAR_SET[vCurrentPieces.back() + 1];
+					screen[((py + 6) * nScreenWidth) + (2 * (nFieldWidth + px) + 1 + 6)] = CHAR_SET[vCurrentPieces.back() + 1];
 				}
 				else
 				{
-					screen[((py + 6) * nScreenWidth) + (nFieldWidth + px + 6)] = L' ';
+					// screen[((py + 6) * nScreenWidth) + (nFieldWidth + px + 6)] = L' ';
+					screen[((py + 6) * nScreenWidth) + (2 * (nFieldWidth + px) + 6)] = L' ';
+					screen[((py + 6) * nScreenWidth) + (2 * (nFieldWidth + px) + 1 + 6)] = L' ';
 				}
 			}
 		}
