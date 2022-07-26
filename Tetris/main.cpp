@@ -141,13 +141,8 @@ void FillAndPermutateIntVector(std::vector<int>& vec, int count)
 /// </summary>
 /// <param name="currentPieces">an empty vector to hold the permutation</param>
 /// <returns>Next piece in the permutation</returns>
-int RandomGenerator()
+int PopNextPiece()
 {
-	// make sure we have pieces to choose from (for first-time initialization)
-	if (vCurrentPieces.empty())
-	{
-		FillAndPermutateIntVector(vCurrentPieces, TETROMINO_COUNT);
-	}
 	int nextPiece = vCurrentPieces.back();
 	vCurrentPieces.pop_back();
 	// refill permutation set when last item is used
@@ -158,21 +153,21 @@ int RandomGenerator()
 	return nextPiece;
 }
 
-void CreateNewPiece(int& nCurrentPiece, int& nCurrentRotation, int& nCurrentX, int& nCurrentY)
+void CreateNewPiece(int& piece, int& rotation, int& x, int& y)
 {
-	/// choose next piece
-	// nCurrentPiece = rand() % TETROMINO_COUNT; // we have 7 tetrominos
-	nCurrentPiece = RandomGenerator();
-	nCurrentRotation = 0;
-	nCurrentX = nFieldWidth / 2;
-	nCurrentY = 0;
+	piece = PopNextPiece();
+	rotation = 0;
+	x = nFieldWidth / 2;
+	y = 0;
 }
 
 int main()
 {
 	srand(time(NULL));
 
+	// initialize pieces and permutation vector
 	InitPieces(tetrominos);
+	FillAndPermutateIntVector(vCurrentPieces, TETROMINO_COUNT);
 
 	/// Construct the playing field array
 	// TODO Move this into separate function
@@ -191,7 +186,6 @@ int main()
 		}
 	}
 
-	// ! this may require a pause since this block comes in at 9:37
 	// this comes from a previous FPS video, https://www.youtube.com/watch?v=xW8skO7MFYw
 	// note that i've replaced all instances of wide strings and chars with their regular 1-byte counterparts
 	wchar_t* screen = new wchar_t[nScreenWidth * nScreenHeight];
@@ -199,9 +193,6 @@ int main()
 	{
 		screen[i] = L' ';
 	}
-
-	// ! jank work around to deal with resizing windows
-	wchar_t* clearScreen = nullptr;
 
 	/// Instead of cout doing stuff, we use a seperate cmd to draw to the console buffer
 	// Apparently a HANDLE is like a pointer with no specific type until you cast it
@@ -231,6 +222,8 @@ int main()
 	bool bGameOver = false;
 	// TODO: game pausing
 	bool bPaused = false;
+	int nScore = 0;
+	int nPiecesDelivered = 0;
 
 	int nCurrentPiece = 0;
 	int nCurrentRotation = 0;
@@ -311,7 +304,7 @@ int main()
 				else
 				{
 					// manual force down when the piece can move no further down and the down key is pressed
-					bForceDown = true;
+					// bForceDown = true;
 				}
 			}
 			// if rotate key pressed
@@ -395,6 +388,13 @@ int main()
 					}
 				}
 
+				nPiecesDelivered++;
+				nScore += 25;
+				if (nPiecesDelivered % 10 == 0)
+				{
+					nTicksPerDrop -= nTicksPerDrop >= 10 ? 1 : 0;
+				}
+
 				/// do we have any horizontals? 
 				// optimization: we don't need to check the entire board, just where the last piece was locked
 				for (int py = 0; py < 4; py++)
@@ -426,6 +426,9 @@ int main()
 						}
 					}
 				}
+
+				// the more lines in a row, the much higher score you get
+				nScore += vLines.empty() ? (1 << vLines.size()) : 0;
 
 				/// choose next piece
 				CreateNewPiece(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY);
@@ -507,19 +510,28 @@ int main()
 		}
 
 		// Draw the score
+		// ! buffer size must be 16 since every string has a hidden \0 terminating character at the end
+		// 2 chars out from left, 2 rows down, 2 chars out from field
+		swprintf_s(&screen[2 + (2 * nScreenWidth) + nFieldWidth + 2], 16, L"Score: %-8d", nScore);
 
 		// Draw the next upcoming piece
+		// 2 chars out from left, 4 rows down, 2 chars out from field
+		swprintf_s(&screen[2 + (4 * nScreenWidth) + nFieldWidth + 2], 12, L"Next piece:");
 		for (int px = 0; px < 4; px++)
 		{
 			for (int py = 0; py < 4; py++)
 			{
-				if (tetrominos[nCurrentPiece][ConvertToRotatedIndex(px, py, 0)] == L'X')
+				if (tetrominos[vCurrentPieces.back()][ConvertToRotatedIndex(px, py, 0)] == L'X')
 				{
 					// x TODO: find a more elegant/less voodoo number magic way of doing this
 					// x nCurrentPiece + 65 lets us convert each piece (listed in order in the tetrominos array)
 					// x to give us ABCDEFG in ASCII, which is what the pieces will be drawn as
 					// x screen[(nCurrentY + py + 2) * nScreenWidth + (nCurrentX + px + 2)] = nCurrentPiece + 65;
-					screen[(py + 4) * nScreenWidth + (nFieldWidth + px + 4)] = CHAR_SET[nCurrentPiece + 1];
+					screen[((py + 6) * nScreenWidth) + (nFieldWidth + px + 6)] = CHAR_SET[vCurrentPieces.back() + 1];
+				}
+				else
+				{
+					screen[((py + 6) * nScreenWidth) + (nFieldWidth + px + 6)] = L' ';
 				}
 			}
 		}
