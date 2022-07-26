@@ -3,14 +3,18 @@
 #include <Windows.h>
 #include <thread>
 #include <chrono>
+#include <vector>
 
 /// <summary>
 /// https://www.youtube.com/watch?v=8OK8_tHeCIA&list=PLrOv9FMX8xJE8NgepZR1etrsU63fDDGxO
 /// Current time: 29:00
 /// </summary>
 
-const int TETRONOMINO_COUNT = 7;
-std::wstring tetrominos[TETRONOMINO_COUNT];
+const int TETROMINO_COUNT = 7;
+std::wstring tetrominos[TETROMINO_COUNT];
+const wchar_t CHAR_SET[11] = L" ABCDEFG=#";
+std::vector<int> vCurrentPieces;
+
 // TODO make this customizable at runtime
 int nFieldWidth = 12;
 int nFieldHeight = 18;
@@ -20,10 +24,52 @@ int nScreenWidth = 120; // Default cmd.exe width (# of columns)
 int nScreenHeight = 30; // Default cmd.exe height (# of rows)
 SMALL_RECT srScreenSize{0, 0, nScreenWidth - 1, nScreenHeight - 1};
 COORD srBufferSize{nScreenWidth, nScreenHeight}; 
+bool bLockedScreenSize = false;
+
 // we will store the elements of the playing field in an array of unsigned characters, allocated dynamically
 unsigned char* pField = nullptr;
 
-bool bLockedScreenSize = false;
+
+void InitPieces(std::wstring (& tetrominos)[TETROMINO_COUNT])
+{
+	/// Create assets
+	// TODO: update piece bounding box and rotation system to satisfy SRS
+	// https://tetris.fandom.com/wiki/SRS
+	tetrominos[0].append(L"..X.");
+	tetrominos[0].append(L"..X.");
+	tetrominos[0].append(L"..X.");
+	tetrominos[0].append(L"..X.");
+
+	tetrominos[1].append(L"..X.");
+	tetrominos[1].append(L".XX.");
+	tetrominos[1].append(L".X..");
+	tetrominos[1].append(L"....");
+
+	tetrominos[2].append(L".X..");
+	tetrominos[2].append(L".XX.");
+	tetrominos[2].append(L"..X.");
+	tetrominos[2].append(L"....");
+
+	tetrominos[3].append(L"....");
+	tetrominos[3].append(L".XX.");
+	tetrominos[3].append(L".XX.");
+	tetrominos[3].append(L"....");
+
+	tetrominos[4].append(L"..X.");
+	tetrominos[4].append(L".XX.");
+	tetrominos[4].append(L"..X.");
+	tetrominos[4].append(L"....");
+
+	tetrominos[5].append(L"....");
+	tetrominos[5].append(L".XX.");
+	tetrominos[5].append(L"..X.");
+	tetrominos[5].append(L"..X.");
+
+	tetrominos[6].append(L"....");
+	tetrominos[6].append(L".XX.");
+	tetrominos[6].append(L".X..");
+	tetrominos[6].append(L".X..");
+}
 
 int ConvertToRotatedIndex(int px, int py, int r)
 {
@@ -75,46 +121,58 @@ bool DoesPieceFit(int nTetromino, int nRotation, int nPosX, int nPosY)
 	return true;
 }
 
+void FillAndPermutateIntVector(std::vector<int>& vec, int count)
+{
+	for (int i = 0; i < count; i++)
+	{
+		vec.push_back(i);
+	}
+	for (int i = count - 1; i > 0; i--)
+	{
+		int randIndex = rand() % i;
+		int temp = vec[randIndex];
+		vec[randIndex] = vec[i];
+		vec[i] = temp;
+	}
+}
+
+/// <summary>
+/// https://tetris.fandom.com/wiki/Random_Generator
+/// </summary>
+/// <param name="currentPieces">an empty vector to hold the permutation</param>
+/// <returns>Next piece in the permutation</returns>
+int RandomGenerator()
+{
+	// make sure we have pieces to choose from (for first-time initialization)
+	if (vCurrentPieces.empty())
+	{
+		FillAndPermutateIntVector(vCurrentPieces, TETROMINO_COUNT);
+	}
+	int nextPiece = vCurrentPieces.back();
+	vCurrentPieces.pop_back();
+	// refill permutation set when last item is used
+	if (vCurrentPieces.empty())
+	{
+		FillAndPermutateIntVector(vCurrentPieces, TETROMINO_COUNT);
+	}
+	return nextPiece;
+}
+
+void CreateNewPiece(int& nCurrentPiece, int& nCurrentRotation, int& nCurrentX, int& nCurrentY)
+{
+	/// choose next piece
+	// nCurrentPiece = rand() % TETROMINO_COUNT; // we have 7 tetrominos
+	nCurrentPiece = RandomGenerator();
+	nCurrentRotation = 0;
+	nCurrentX = nFieldWidth / 2;
+	nCurrentY = 0;
+}
+
 int main()
 {
-	// = is for when we draw the line, # is for borders
-	const wchar_t CHAR_SET[11] = L" ABCDEFG=#";
+	srand(time(NULL));
 
-	/// Create assets
-	tetrominos[0].append(L"..X.");
-	tetrominos[0].append(L"..X.");
-	tetrominos[0].append(L"..X.");
-	tetrominos[0].append(L"..X.");
-
-	tetrominos[1].append(L"..X.");
-	tetrominos[1].append(L".XX.");
-	tetrominos[1].append(L".X..");
-	tetrominos[1].append(L"....");
-
-	tetrominos[2].append(L".X..");
-	tetrominos[2].append(L".XX.");
-	tetrominos[2].append(L"..X.");
-	tetrominos[2].append(L"....");
-
-	tetrominos[3].append(L"....");
-	tetrominos[3].append(L".XX.");
-	tetrominos[3].append(L".XX.");
-	tetrominos[3].append(L"....");
-
-	tetrominos[4].append(L"..X.");
-	tetrominos[4].append(L".XX.");
-	tetrominos[4].append(L"..X.");
-	tetrominos[4].append(L"....");
-	
-	tetrominos[5].append(L"....");
-	tetrominos[5].append(L".XX.");
-	tetrominos[5].append(L"..X.");
-	tetrominos[5].append(L"..X.");
-
-	tetrominos[6].append(L"....");
-	tetrominos[6].append(L".XX.");
-	tetrominos[6].append(L".X..");
-	tetrominos[6].append(L".X..");
+	InitPieces(tetrominos);
 
 	/// Construct the playing field array
 	// TODO Move this into separate function
@@ -171,17 +229,25 @@ int main()
 
 	/// Game loop
 	bool bGameOver = false;
+	// TODO: game pausing
+	bool bPaused = false;
 
 	int nCurrentPiece = 0;
 	int nCurrentRotation = 0;
 	int nCurrentX = nFieldWidth / 2;
 	int nCurrentY = 0;
 
+	CreateNewPiece(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY);
+
 	int nTicksPerDrop = 20;
-	int nTickCounter = 0;
+	int nDropTickCounter = 0;
 	bool bForceDown = false;
 
-	bool bBottomHorizontal = false;
+	// ? is this efficient?
+	std::vector<int> vLines;
+	int nTicksPerLine = 10;
+	int nLineTickCounter = 0;
+	bool bLinePause = false;
 
 	/// Input tracking
 	// TODO better input mapping system
@@ -198,78 +264,118 @@ int main()
 		// 50 mspt -> 20 tps
 		// TODO: implement delta-time to prevent slow-downs
 		std::this_thread::sleep_for(std::chrono::milliseconds(50));
-		nTickCounter++;
-		bForceDown = (nTickCounter >= nTicksPerDrop);
+
+		if (!bLinePause)
+		{
+			nDropTickCounter++;
+		}
+		bForceDown = (nDropTickCounter >= nTicksPerDrop);
 
 		/// INPUT (no events, do this old-school style)
 		// pulled from other console project vids
 		for (int k = 0; k < INPUT_COUNT; k++)
 		{
-			// loops thru array of 4 booleans representing the state of the keys
-			// uses the AsyncKeyState which checks if the button is pressed
-			// the function returns a short which acts as a BITFLAG
-			// according to https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getasynckeystate
-			// the most significant digit is 1 when the key is pressed; other bits may get set for other behavior,
-			// but we only want the first digit, so we bitmask it with 0x8000 to get a zero or non-zero (false or true)
-			// value for checking this specific bit
-																	// R   L   D   U	   _		
-			// VK_RIGHT = 0x27
-			// VK_LEFT = 0x25
-			// VK_DOWN = 0x28
-			// VK_UP = 0x26
-			// VK_SPACE = 0x20
+			/*
+				loops thru array of 4 booleans representing the state of the keys
+				uses the AsyncKeyState which checks if the button is pressed
+				the function returns a short which acts as a BITFLAG
+				according to https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getasynckeystate
+				the most significant digit is 1 when the key is pressed; other bits may get set for other behavior,
+				but we only want the first digit, so we bitmask it with 0x8000 to get a zero or non-zero (false or true)
+				value for checking this specific bit
+																		 R   L   D   U	   _		
+				VK_RIGHT = 0x27
+				VK_LEFT = 0x25
+				VK_DOWN = 0x28
+				VK_UP = 0x26
+				VK_SPACE = 0x20
+			*/
 			// TODO: Move key mapping array out of here so it is only created once and can be remapped at runtime
 			bKey[k] = (0x8000 & GetAsyncKeyState((unsigned char)("\x27\x25\x28\x26\x20"[k])));
 		}
 
 		/// GAME LOGIC
-		// if right key pressed
-		nCurrentX += (bKey[0] && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX + 1, nCurrentY)) ? 1 : 0;
-		// if left key pressed
-		nCurrentX += (bKey[1] && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX - 1, nCurrentY)) ? -1 : 0;
-		// if down key pressed
-		if (bKey[2])
+		if (!bLinePause)
 		{
-			if (DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY + 1))
+			// if right key pressed
+			nCurrentX += (bKey[0] && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX + 1, nCurrentY)) ? 1 : 0;
+			// if left key pressed
+			nCurrentX += (bKey[1] && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX - 1, nCurrentY)) ? -1 : 0;
+			// if down key pressed
+			if (bKey[2])
 			{
-				nCurrentY += 1;
+				if (DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY + 1))
+				{
+					nCurrentY += 1;
+				}
+				else
+				{
+					// manual force down when the piece can move no further down and the down key is pressed
+					bForceDown = true;
+				}
+			}
+			// if rotate key pressed
+			if (bKey[3])
+			{
+				nCurrentRotation += (!bRotateHold && DoesPieceFit(nCurrentPiece, nCurrentRotation + 1, nCurrentX, nCurrentY)) ? 1 : 0;
+				bRotateHold = true;
+			}
+			else // rotate lock
+			{
+				bRotateHold = false;
+			}
+			// snap down key
+			if (bKey[4])
+			{
+				if (!bDropHold)
+				{
+					while (DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY + 1))
+					{
+						nCurrentY++;
+					}
+					bForceDown = true;
+					bDropHold = true;
+				}
+			}
+			else // drop lock
+			{
+				bDropHold = false;
+			}
+		}
+
+		/// Line removal
+		if (!vLines.empty())
+		{
+			if (nLineTickCounter >= nTicksPerLine)
+			{
+				for (int row : vLines)
+				{
+					// column by column
+					for (int fx = 1; fx < nFieldWidth - 1; fx++)
+					{
+						// since the vector contains rows in order of top-most to bottom
+						// we will shift everything down as we go top-down the field
+						for (int fy = row; fy > 0; fy--)
+						{
+							pField[(fy * nFieldWidth) + fx] = pField[((fy - 1) * nFieldWidth) + fx];
+						}
+						// set topmost row to 0
+						pField[fx] = 0;
+					}
+				}
+				vLines.clear();
+				bLinePause = false;
+				nLineTickCounter = 0;
 			}
 			else
 			{
-				// manual force down when the piece can move no further down and the down key is pressed
-				bForceDown = true;
+				bLinePause = true;
+				nLineTickCounter++;
 			}
-		}
-		// if rotate key pressed
-		if (bKey[3])
-		{
-			nCurrentRotation += (!bRotateHold && DoesPieceFit(nCurrentPiece, nCurrentRotation + 1, nCurrentX, nCurrentY)) ? 1 : 0;
-			bRotateHold = true;
-		}
-		else // rotate lock
-		{
-			bRotateHold = false;
-		}
-		// snap down key
-		if (bKey[4])
-		{
-			if (!bDropHold)
-			{
-				while (DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY + 1))
-				{
-					nCurrentY++;
-				}
-				bForceDown = true;
-				bDropHold = true;
-			}
-		}
-		else // drop lock
-		{
-			bDropHold = false;
 		}
 
-		// "gravity"
-		if (bForceDown)
+		/// "gravity"
+		if (bForceDown && !bLinePause)
 		{
 			if (DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY + 1))
 			{
@@ -289,31 +395,45 @@ int main()
 					}
 				}
 
-				// TODO: do we have any horizontals?
-				bBottomHorizontal = true;
-				for (int fx = 0; fx < nFieldWidth; fx++)
+				/// do we have any horizontals? 
+				// optimization: we don't need to check the entire board, just where the last piece was locked
+				for (int py = 0; py < 4; py++)
 				{
-					if (pField[nFieldHeight * fx] == 0)
+					// boundary check to avoid checking outside the array & playing field (possible with horizontal line pieces)
+					if (nCurrentY + py < nFieldHeight - 1)
 					{
-						bBottomHorizontal = false;
-						break;
+						bool bLine = true;
+						bool dbg_bLine = true;
+						// start at 1 since index 0 and index (nFieldWidth - 1) are boundaries
+						// scan left to right
+						for (int fx = 1; fx < nFieldWidth - 1; fx++)
+						{
+							bLine &= (pField[(nCurrentY + py) * nFieldWidth + fx]) != 0; // bitwise version
+							// bLine = bLine && (pField[(nCurrentY + py) * nFieldWidth + fx]) != 0; // logical version
+						}
+
+						if (bLine)
+						{
+							// replace lines with = character
+							for (int fx = 1; fx < nFieldWidth - 1; fx++)
+							{
+								pField[(nCurrentY + py) * nFieldWidth + fx] = 8;
+							}
+							// add current row index to the vector to reference later for removal
+							// ! by our iteration order, this will add rows top-to-bottom, left-to-right in the vector
+							vLines.push_back(nCurrentY + py);
+							bLinePause = true;
+						}
 					}
 				}
 
 				/// choose next piece
-				nCurrentRotation = 0;
-				nCurrentX = nFieldWidth / 2;
-				nCurrentY = 0;
-				nCurrentPiece = rand() % TETRONOMINO_COUNT; // we have 7 tetrominos
+				CreateNewPiece(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY);
 
 				/// if next piece can't spawn, game over
 				bGameOver = !DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY);
 			}
-			nTickCounter = 0;
-		}
-		else
-		{
-
+			nDropTickCounter = 0;
 		}
 
 		/// CHECK WINDOW
@@ -366,18 +486,40 @@ int main()
 		}
 
 		// Since the current piece isn't part of the field yet, we draw it on top of the field after the field is drawn
+		// DON'T DO THIS UNTIL THE LINE HAS CLEARED (if exists)
 		// iterate thru entire piece
+		if (!bLinePause)
+		{
+			for (int px = 0; px < 4; px++)
+			{
+				for (int py = 0; py < 4; py++)
+				{
+					if (tetrominos[nCurrentPiece][ConvertToRotatedIndex(px, py, nCurrentRotation)] == L'X')
+					{
+						// x TODO: find a more elegant/less voodoo number magic way of doing this
+						// x nCurrentPiece + 65 lets us convert each piece (listed in order in the tetrominos array)
+						// x to give us ABCDEFG in ASCII, which is what the pieces will be drawn as
+						// x screen[(nCurrentY + py + 2) * nScreenWidth + (nCurrentX + px + 2)] = nCurrentPiece + 65;
+						screen[(nCurrentY + py + 2) * nScreenWidth + (nCurrentX + px + 2)] = CHAR_SET[nCurrentPiece + 1];
+					}
+				}
+			}
+		}
+
+		// Draw the score
+
+		// Draw the next upcoming piece
 		for (int px = 0; px < 4; px++)
 		{
 			for (int py = 0; py < 4; py++)
 			{
-				if (tetrominos[nCurrentPiece][ConvertToRotatedIndex(px, py, nCurrentRotation)] == L'X')
+				if (tetrominos[nCurrentPiece][ConvertToRotatedIndex(px, py, 0)] == L'X')
 				{
 					// x TODO: find a more elegant/less voodoo number magic way of doing this
 					// x nCurrentPiece + 65 lets us convert each piece (listed in order in the tetrominos array)
 					// x to give us ABCDEFG in ASCII, which is what the pieces will be drawn as
 					// x screen[(nCurrentY + py + 2) * nScreenWidth + (nCurrentX + px + 2)] = nCurrentPiece + 65;
-					screen[(nCurrentY + py + 2) * nScreenWidth + (nCurrentX + px + 2)] = CHAR_SET[nCurrentPiece + 1];
+					screen[(py + 4) * nScreenWidth + (nFieldWidth + px + 4)] = CHAR_SET[nCurrentPiece + 1];
 				}
 			}
 		}
