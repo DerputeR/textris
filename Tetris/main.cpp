@@ -124,7 +124,7 @@ int main()
 	{
 		for (int y = 0; y < nFieldHeight; y++)
 		{
-			// if this part of the array corresponds to the left/right edge of the field OR the bottom, fill it
+			/// if this part of the array corresponds to the left/right edge of the field OR the bottom, fill it
 			// ? why are we using 9 and 0 and not specific chars?
 			// SEE HOW THIS CORRESPONDS TO THE CHAR INDICES IN CHAR_SET
 			// We're doing rendering separate from the core logic
@@ -181,12 +181,16 @@ int main()
 	int nTickCounter = 0;
 	bool bForceDown = false;
 
+	bool bBottomHorizontal = false;
+
 	/// Input tracking
 	// TODO better input mapping system
 	const int INPUT_COUNT = 5;
 	bool bKey[INPUT_COUNT];
 	// rotate button locking to make rotations happen ONLY on initial key press
 	bool bRotateHold = false;
+	// drop button locking to make drops happen ONLY on initial key press
+	bool bDropHold = false;
 
 	while (!bGameOver)
 	{
@@ -249,11 +253,19 @@ int main()
 		// snap down key
 		if (bKey[4])
 		{
-			while (DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY + 1))
+			if (!bDropHold)
 			{
-				nCurrentY++;
+				while (DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY + 1))
+				{
+					nCurrentY++;
+				}
+				bForceDown = true;
+				bDropHold = true;
 			}
-			bForceDown = true;
+		}
+		else // drop lock
+		{
+			bDropHold = false;
 		}
 
 		// "gravity"
@@ -266,8 +278,27 @@ int main()
 			else
 			{
 				/// lock current piece in the field
+				for (int px = 0; px < 4; px++)
+				{
+					for (int py = 0; py < 4; py++)
+					{
+						if (tetrominos[nCurrentPiece][ConvertToRotatedIndex(px, py, nCurrentRotation)] == L'X')
+						{
+							pField[(nCurrentY + py) * nFieldWidth + (nCurrentX + px)] = nCurrentPiece + 1;
+						}
+					}
+				}
 
-				/// do we have any horizontals?
+				// TODO: do we have any horizontals?
+				bBottomHorizontal = true;
+				for (int fx = 0; fx < nFieldWidth; fx++)
+				{
+					if (pField[nFieldHeight * fx] == 0)
+					{
+						bBottomHorizontal = false;
+						break;
+					}
+				}
 
 				/// choose next piece
 				nCurrentRotation = 0;
