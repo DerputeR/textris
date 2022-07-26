@@ -12,7 +12,7 @@
 
 const int TETROMINO_COUNT = 7;
 std::wstring tetrominos[TETROMINO_COUNT];
-const wchar_t CHAR_SET[11] = L" ███████=#";
+const wchar_t CHAR_SET[11] = L" ███████⁄#";
 std::vector<int> vCurrentPieces;
 
 // TODO make this customizable at runtime
@@ -165,6 +165,14 @@ void CreateNewPiece(int& piece, int& rotation, int& x, int& y)
 	y = 0;
 }
 
+void TracePieceToBottom(int& piece, int& rotation, int& x, int& y)
+{
+	while (DoesPieceFit(piece, rotation, x, y + 1))
+	{
+		y++;
+	}
+}
+
 int main()
 {
 	srand(time(NULL));
@@ -234,15 +242,18 @@ int main()
 	int nCurrentX = nFieldWidth / 2;
 	int nCurrentY = 0;
 
+	int nGhostX = nCurrentX;
+	int nGhostY = nCurrentY;
+
 	CreateNewPiece(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY);
 
 	int nTicksPerDrop = 20;
 	int nDropTickCounter = 0;
 	bool bForceDown = false;
 
-	// ? is this efficient?
+	// ? is this efficient? can we get away with a size 4 array?
 	std::vector<int> vLines;
-	int nTicksPerLine = 10;
+	int nTicksPerLine = 6;
 	int nLineTickCounter = 0;
 	bool bLinePause = false;
 
@@ -309,8 +320,9 @@ int main()
 				}
 				else
 				{
-					// manual force down when the piece can move no further down and the down key is pressed
-					bForceDown = true;
+					// todo figure out what feels good for when the piece is at the bottom and you press/hold down
+					// bForceDown = true;
+					nDropTickCounter = nTicksPerDrop - nDropTickCounter > 5 ? max(nTicksPerDrop - 5, 0) : nDropTickCounter;
 				}
 			}
 			// if rotate key pressed
@@ -323,20 +335,18 @@ int main()
 			{
 				bRotateHold = false;
 			}
-			// snap down key
+			// hard drop - we want it to drop from where we currently see it, not where it's going to be after this tick
 			if (bKey[4])
 			{
 				if (!bDropHold)
 				{
-					while (DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY + 1))
-					{
-						nCurrentY++;
-					}
+					nCurrentX = nGhostX;
+					nCurrentY = nGhostY;
 					bForceDown = true;
 					bDropHold = true;
 				}
 			}
-			else // drop lock
+			else // hard drop lock
 			{
 				bDropHold = false;
 			}
@@ -445,6 +455,11 @@ int main()
 			nDropTickCounter = 0;
 		}
 
+		/// GHOST PIECE
+		nGhostX = nCurrentX;
+		nGhostY = nCurrentY;
+		TracePieceToBottom(nCurrentPiece, nCurrentRotation, nGhostX, nGhostY);
+
 		/// CHECK WINDOW
 		GetConsoleScreenBufferInfo(hConsole, &info);
 		currentWindowSize = GetLargestConsoleWindowSize(hConsole);
@@ -500,6 +515,7 @@ int main()
 		// Since the current piece isn't part of the field yet, we draw it on top of the field after the field is drawn
 		// DON'T DO THIS UNTIL THE LINE HAS CLEARED (if exists)
 		// iterate thru entire piece
+		// also draws the ghost piece
 		if (!bLinePause)
 		{
 			for (int px = 0; px < 4; px++)
@@ -508,11 +524,10 @@ int main()
 				{
 					if (tetrominos[nCurrentPiece][ConvertToRotatedIndex(px, py, nCurrentRotation)] == L'X')
 					{
-						// x TODO: find a more elegant/less voodoo number magic way of doing this
-						// x nCurrentPiece + 65 lets us convert each piece (listed in order in the tetrominos array)
-						// x to give us ABCDEFG in ASCII, which is what the pieces will be drawn as
-						// x screen[(nCurrentY + py + 2) * nScreenWidth + (nCurrentX + px + 2)] = nCurrentPiece + 65;
-						// screen[(nCurrentY + py + 2) * nScreenWidth + (nCurrentX + px + 2)] = CHAR_SET[nCurrentPiece + 1];
+						// ghost piece draw
+						screen[(nGhostY + py + 2) * nScreenWidth + (2 * (nGhostX + px) + 2)] = L'░';
+						screen[(nGhostY + py + 2) * nScreenWidth + (2 * (nGhostX + px) + 1 + 2)] = L'░';
+						// real piece draw
 						screen[(nCurrentY + py + 2) * nScreenWidth + (2 * (nCurrentX + px) + 2)] = CHAR_SET[nCurrentPiece + 1];
 						screen[(nCurrentY + py + 2) * nScreenWidth + (2 * (nCurrentX + px) + 1 + 2)] = CHAR_SET[nCurrentPiece + 1];
 					}
@@ -543,8 +558,8 @@ int main()
 				else
 				{
 					// screen[((py + 6) * nScreenWidth) + (nFieldWidth + px + 6)] = L' ';
-					screen[((py + 6) * nScreenWidth) + (2 * (nFieldWidth + px) + 6)] = L' ';
-					screen[((py + 6) * nScreenWidth) + (2 * (nFieldWidth + px) + 1 + 6)] = L' ';
+					screen[((py + 6) * nScreenWidth) + (2 * (nFieldWidth + px) + 6)] = L'·';
+					screen[((py + 6) * nScreenWidth) + (2 * (nFieldWidth + px) + 1 + 6)] = L'·';
 				}
 			}
 		}
