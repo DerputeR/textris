@@ -5,6 +5,8 @@ VisualStudioVersion = 17.2.32630.192
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Tetris", "Tetris\Tetris.vcxproj", "{47878545-96F8-49C6-9523-951E7101BF65}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ColorConsoleTests", "ColorConsoleTests\ColorConsoleTests.vcxproj", "{67144423-E3C5-423F-A6FE-9A4365B3D0C2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -21,6 +23,14 @@ Global
 		{47878545-96F8-49C6-9523-951E7101BF65}.Release|x64.Build.0 = Release|x64
 		{47878545-96F8-49C6-9523-951E7101BF65}.Release|x86.ActiveCfg = Release|Win32
 		{47878545-96F8-49C6-9523-951E7101BF65}.Release|x86.Build.0 = Release|Win32
+		{67144423-E3C5-423F-A6FE-9A4365B3D0C2}.Debug|x64.ActiveCfg = Debug|x64
+		{67144423-E3C5-423F-A6FE-9A4365B3D0C2}.Debug|x64.Build.0 = Debug|x64
+		{67144423-E3C5-423F-A6FE-9A4365B3D0C2}.Debug|x86.ActiveCfg = Debug|Win32
+		{67144423-E3C5-423F-A6FE-9A4365B3D0C2}.Debug|x86.Build.0 = Debug|Win32
+		{67144423-E3C5-423F-A6FE-9A4365B3D0C2}.Release|x64.ActiveCfg = Release|x64
+		{67144423-E3C5-423F-A6FE-9A4365B3D0C2}.Release|x64.Build.0 = Release|x64
+		{67144423-E3C5-423F-A6FE-9A4365B3D0C2}.Release|x86.ActiveCfg = Release|Win32
+		{67144423-E3C5-423F-A6FE-9A4365B3D0C2}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

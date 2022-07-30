@@ -199,7 +199,7 @@ int main()
 	}
 
 	// this comes from a previous FPS video, https://www.youtube.com/watch?v=xW8skO7MFYw
-	// note that i've replaced all instances of wide strings and chars with their regular 1-byte counterparts
+	// x note that i've replaced all instances of wide strings and chars with their regular 1-byte counterparts
 	wchar_t* screen = new wchar_t[nScreenWidth * nScreenHeight];
 	for (int i = 0; i < nScreenWidth * nScreenHeight; i++)
 	{
@@ -216,6 +216,17 @@ int main()
 	HANDLE hConsole = CreateConsoleScreenBuffer(GENERIC_READ | GENERIC_WRITE, 0, NULL, CONSOLE_TEXTMODE_BUFFER, NULL);
 	SetConsoleActiveScreenBuffer(hConsole);
 	DWORD dwBytesWritten = 0;
+
+	CONSOLE_FONT_INFOEX fontex;
+	fontex.cbSize = sizeof(fontex);
+	// GetCurrentConsoleFontEx(hConsole, 0, &fontex);
+	fontex.nFont = 0;
+	fontex.dwFontSize.X = 16;
+	fontex.dwFontSize.Y = 16;
+	fontex.FontFamily = FF_DONTCARE;
+	fontex.FontWeight = FW_NORMAL;
+
+	// SetCurrentConsoleFontEx(hConsole, NULL, &fontex);
 
 	/// Display the frame
 	// ! this is why we needed wide chars and wide strings; this output method requires it
@@ -522,14 +533,30 @@ int main()
 			{
 				for (int py = 0; py < 4; py++)
 				{
+					//switch (nCurrentPiece)
+					//{
+					//case 0:
+					//case 1:
+					//case 2:
+					//case 3:
+					//case 4:
+					//case 5:
+					//case 6:
+					//default:
+					//}
 					if (tetrominos[nCurrentPiece][ConvertToRotatedIndex(px, py, nCurrentRotation)] == L'X')
 					{
 						// ghost piece draw
+						SetConsoleTextAttribute(hConsole, FOREGROUND_BLUE);
+						// screen[(nGhostY + py + 2) * nScreenWidth + ((nGhostX + px) + 2)] = L'░';
 						screen[(nGhostY + py + 2) * nScreenWidth + (2 * (nGhostX + px) + 2)] = L'░';
 						screen[(nGhostY + py + 2) * nScreenWidth + (2 * (nGhostX + px) + 1 + 2)] = L'░';
 						// real piece draw
+						SetConsoleTextAttribute(hConsole, FOREGROUND_RED);
+						// screen[(nCurrentY + py + 2) * nScreenWidth + ((nCurrentX + px) + 2)] = CHAR_SET[nCurrentPiece + 1];
 						screen[(nCurrentY + py + 2) * nScreenWidth + (2 * (nCurrentX + px) + 2)] = CHAR_SET[nCurrentPiece + 1];
 						screen[(nCurrentY + py + 2) * nScreenWidth + (2 * (nCurrentX + px) + 1 + 2)] = CHAR_SET[nCurrentPiece + 1];
+						//SetConsoleTextAttribute(hConsole, 7);
 					}
 				}
 			}
@@ -565,6 +592,11 @@ int main()
 		}
 
 		// Display the frame
-		WriteConsoleOutputCharacter(hConsole, screen, nScreenWidth * nScreenHeight, { 0, 0 }, &dwBytesWritten);
+		WriteConsoleOutputCharacterW(
+			hConsole, 
+			screen, 
+			nScreenWidth * nScreenHeight, 
+			{ 0, 0 }, 
+			&dwBytesWritten);
 	}
 }
