@@ -132,6 +132,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\ColorConsole.cpp" />
+    <ClCompile Include="src\KeyInput.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\KeyInput.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
