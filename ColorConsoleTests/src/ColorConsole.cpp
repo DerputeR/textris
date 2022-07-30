@@ -1,5 +1,9 @@
 #include <Windows.h>
 #include <iostream>
+#include <thread>
+#include <chrono>
+
+bool running = true;
 
 int screen_width = 120; // col count
 int screen_height = 30; // row count
@@ -13,7 +17,11 @@ bool locked_screen_size = false;
 
 unsigned char* string_field = nullptr;
 
-bool inputs[1]{};
+const int input_count = 1;
+bool inputs[input_count] = {};
+int input_map[input_count] = {
+	VK_ESCAPE
+};
 
 int main()
 {
@@ -48,8 +56,21 @@ int main()
 	CONSOLE_SCREEN_BUFFER_INFO info;
 	COORD currentWindowSize;
 
-	while (true)
+	while (running)
 	{
+		std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+		/// INPUT (no events, do this old-school style)
+		for (int k = 0; k < input_count; k++)
+		{
+			inputs[k] = (0x8000 & GetAsyncKeyState(input_map[k]));
+		}
+
+		if (inputs[0])
+		{
+			running = false;
+		}
+
 		// output
 		WriteConsoleOutputCharacterW(
 			h_console,
@@ -59,5 +80,6 @@ int main()
 			&dw_bytes_written);
 	}
 
+	CloseHandle(h_console);
 	system("pause");
 }
