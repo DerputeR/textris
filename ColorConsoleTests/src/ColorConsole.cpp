@@ -23,16 +23,17 @@ bool locked_screen_size = false;
 unsigned char* string_field = nullptr;
 
 // color position
-int color_start_index = 10;
+int color_start_index = 0;
 int color_length = 10;
-WORD color = FOREGROUND_RED;
+WORD color_red = FOREGROUND_RED;
+WORD color_default = FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE;
 
 bool use_console_buffer = true;
 int console_buffer_mode = 0; // 0, 1, 2
 int buffer_size = screen_width * screen_height;
 
 // inputs
-const int input_count = 7;
+const int input_count = 9;
 ColorConsoleInput::Key input_keys[input_count] = {
 	{VK_ESCAPE},
 	{VK_RETURN},
@@ -40,8 +41,12 @@ ColorConsoleInput::Key input_keys[input_count] = {
 	{VK_UP},
 	{VK_DOWN},
 	{VK_RIGHT},
-	{VK_LEFT}
+	{VK_LEFT},
+	{VK_LCONTROL},
+	{VK_LSHIFT}
 };
+HANDLE console_window;
+HANDLE foreground_window;
 
 // unsafe but i don't care
 void ReplaceChars(char* string, char* replace, int start, int len)
@@ -60,6 +65,18 @@ void ReplaceChars(wchar_t* string, wchar_t* replace, int start, int len)
 	}
 }
 
+void ReplaceCharInfo(CHAR_INFO* ci, wchar_t* replace, int start, int len)
+{
+	for (int i = 0; i < len; i++)
+	{
+		//if (replace[i] == '\0')
+		//{
+		//	break;
+		//}
+		ci[i + start].Char.UnicodeChar = replace[i];
+	}
+}
+
 int main()
 {
 	wchar_t* screen = new wchar_t[screen_width * screen_height];
@@ -68,6 +85,7 @@ int main()
 	{
 		screen[i] = L' ';
 		screen_data[i].Char.UnicodeChar = L' ';
+		screen_data[i].Attributes = FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE;
 	}	
 
 	// console buffer setup
@@ -79,8 +97,14 @@ int main()
 		NULL);
 	DWORD dw_bytes_written = 0;
 	DWORD dw_attrs_written = 0;
+
+	// attempt at making the cursor selection disappear
+	HANDLE hInput = GetStdHandle(STD_INPUT_HANDLE);
+	DWORD prev_mode;
+	GetConsoleMode(hInput, &prev_mode);
 	if (use_console_buffer)
 	{
+		SetConsoleMode(hInput, ENABLE_EXTENDED_FLAGS | (prev_mode & ~ENABLE_QUICK_EDIT_MODE));
 		SetConsoleMode(
 			h_console_buffer,
 			ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING | DISABLE_NEWLINE_AUTO_RETURN
@@ -89,11 +113,11 @@ int main()
 	}
 	else
 	{
+		SetConsoleMode(hInput, prev_mode);
 		std::cout << "Started outside of buffer mode" << std::endl;
 	}
 
 	// getting font info and updating it
-	/*
 	CONSOLE_FONT_INFOEX cfi;
 	cfi.cbSize = sizeof(cfi); // MUST BE DONE
 	GetCurrentConsoleFontEx(h_console_buffer, false, &cfi);
@@ -103,7 +127,6 @@ int main()
 	cfi.FontFamily = FF_DONTCARE;
 	cfi.FontWeight = FW_NORMAL;
 	// SetCurrentConsoleFontEx(h_console_buffer, NULL, &cfi);
-	*/
 
 	// get screen info as the program runs
 	CONSOLE_SCREEN_BUFFER_INFO info;
@@ -114,147 +137,137 @@ int main()
 	cci.bVisible = false;
 	SetConsoleCursorInfo(h_console_buffer, &cci);
 
+	console_window = GetConsoleWindow();
+
 	while (running)
 	{
 		std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
 		/// INPUT (no events, do this old-school style)
-		for (int k = 0; k < input_count; k++)
+		foreground_window = GetForegroundWindow();
+		// only process inputs when the console is focused
+		if (foreground_window == console_window)
 		{
-			input_keys[k].UpdateKey(0x8000 & GetAsyncKeyState(input_keys[k].keycode));
-		}
-
-		if (input_keys[0].pressed)
-		{
-			running = false;
-		}
-
-		if (input_keys[1].pressed && !input_keys[1].holding)
-		{
-			if (!use_console_buffer)
+			for (int k = 0; k < input_count; k++)
 			{
-				h_console_buffer = CreateConsoleScreenBuffer(
-					GENERIC_READ | GENERIC_WRITE,
-					0,
-					NULL,
-					CONSOLE_TEXTMODE_BUFFER,
-					NULL);
-				SetConsoleActiveScreenBuffer(h_console_buffer);
-				SetConsoleCursorInfo(h_console_buffer, &cci);
+				input_keys[k].UpdateKey(0x8000 & GetAsyncKeyState(input_keys[k].keycode));
 			}
-			else
+			if (input_keys[0].pressed)
 			{
-				CloseHandle(h_console_buffer);
-				system("cls");
-				std::cout << "Exited buffer mode" << std::endl;
-				wprintf(L"\x1B[31m" L"Buffer size: %-4d" L"\x1B[0m\n", buffer_size);
+				running = false;
 			}
-			use_console_buffer = !use_console_buffer;
-		}
-
-		if (input_keys[5].pressed)
-		{
-			color_start_index += 5;
-		}
-		if (input_keys[6].pressed)
-		{
-			color_start_index -= 5;
+			if (input_keys[1].pressed && !input_keys[1].holding)
+			{
+				if (!use_console_buffer)
+				{
+					h_console_buffer = CreateConsoleScreenBuffer(
+						GENERIC_READ | GENERIC_WRITE,
+						0,
+						NULL,
+						CONSOLE_TEXTMODE_BUFFER,
+						NULL);
+					SetConsoleActiveScreenBuffer(h_console_buffer);
+					SetConsoleCursorInfo(h_console_buffer, &cci);
+					SetConsoleMode(hInput, ENABLE_EXTENDED_FLAGS | (prev_mode & ~ENABLE_QUICK_EDIT_MODE));
+				}
+				else
+				{
+					CloseHandle(h_console_buffer);
+					system("cls");
+					std::cout << "Exited buffer mode" << std::endl;
+					wprintf(L"\x1B[31m" L"Buffer size: %-4d" L"\x1B[0m\n", buffer_size);
+					SetConsoleMode(hInput, prev_mode);
+				}
+				use_console_buffer = !use_console_buffer;
+			}
+			if (use_console_buffer && input_keys[3].pressed)
+			{
+				buffer_size += input_keys[7].pressed ? 1000 : 10;
+			}
+			if (use_console_buffer && input_keys[4].pressed)
+			{
+				buffer_size = max(0, buffer_size - (input_keys[7].pressed ? 1000 : 10));
+			}
+			if (input_keys[5].pressed)
+			{
+				if (input_keys[8].pressed)
+				{
+					color_length += input_keys[7].pressed ? 20 : 4;
+				}
+				else
+				{
+					color_start_index += input_keys[7].pressed ? 20 : 4;
+				}
+			}
+			if (input_keys[6].pressed)
+			{
+				if (input_keys[8].pressed)
+				{
+					color_length = max(0, color_length - (input_keys[7].pressed ? 20 : 4));
+				}
+				else
+				{
+					color_start_index = max(0, color_start_index - (input_keys[7].pressed ? 20 : 4));
+				}
+			}
 		}
 
 		/// OUTPUT
 		if (use_console_buffer)
 		{
-			if (input_keys[3].pressed)
-			{
-				buffer_size += 10;
-			}
-			if (input_keys[4].pressed)
-			{
-				buffer_size -= 10;
-			}
-
 			for (int i = 0; i < screen_width * screen_height; i++)
 			{
 				if (i < buffer_size)
 				{
 					screen[i] = L"█▓▒░"[i % 4];
+					screen_data[i].Char.UnicodeChar = L"█▓▒░"[i % 4];
+					if (i >= color_start_index && i < color_start_index + color_length)
+					{
+						screen_data[i].Attributes = color_red;
+					}
+					else
+					{
+						screen_data[i].Attributes = color_default;
+					}
 				}
 				else
 				{
 					screen[i] = L' ';
+					screen_data[i].Char.UnicodeChar = L' ';
 				}
 			}
-			//todo: figure out how to dynamically adjust buffer size
-			// swprintf_s(&screen[0], 28, L"\x1B[31m" L"Buffer size: %-4d" L"\x1B[0m", buffer_size);
 
-			/*
-			
-			std::wstring string_label = L"Buffer size: %-4d";
 			wchar_t wchar_label[] = L"Buffer size: %-4d";
-			swprintf(
-				&wchar_label[0],
-				28,
-				wchar_label,
-				buffer_size);
-			std::wstring wstr_screen = (std::wstring) screen;
-			wstr_screen.replace(
+			// https://stackoverflow.com/questions/2342162/stdstring-formatting-like-sprintf
+			// Below is a very raw, unsafe version of the above post
+			int format_size = swprintf(
+				nullptr,
 				0,
-				28,
-				wchar_label
-			);
-			std::vector<wchar_t> vector_label_copy{wstr_screen.begin(), wstr_screen.end()};
-			screen = &vector_label_copy[0];
-			// screen = &*(wstr_screen.data()); // doesn't work
-
-			*/
-
-			wchar_t wchar_label[] = L"Buffer size: %-4d";
+				wchar_label,
+				buffer_size
+			) + 1; // extra space for the would-be '\0'
 			swprintf(
 				&wchar_label[0],
-				28,
+				format_size,
 				wchar_label,
-				buffer_size);
-			ReplaceChars(screen, wchar_label, 0, 28);
+				buffer_size
+			); // null char is still written, but now we know exactly where it is
 
-			// output
-			//WriteConsoleOutputAttribute(
-			//	h_console_buffer,
-			//	&color,
-			//	color_length,
-			//	{ (short)(color_start_index % screen_width), (short)(color_start_index / screen_width) },
-			//	&dw_attrs_written
-			//);
-
-			//WriteConsoleOutputCharacterW(
-			//	h_console_buffer,
-			//	screen,
-			//	// buffer_size,
-			//	screen_width * screen_height,
-			//	{ 0, 0 },
-			//	&dw_bytes_written);
-
-			
-			//WriteConsoleW(
-			//	h_console_buffer,
-			//	screen,
-			//	// buffer_size,
-			//	screen_width * screen_height,
-			//	&dw_bytes_written,
-			//	NULL);
+			ReplaceChars(screen, wchar_label, 0, format_size - 1);
+			ReplaceCharInfo(screen_data, wchar_label, screen_width - (format_size - 1), format_size - 1);
 
 			WriteConsoleOutput(
 				h_console_buffer,
-				&screen[0],
+				screen_data,
 				{ screen_width, screen_height },
 				{ 0, 0 },
-				{ 0, 0, screen_width, screen_height }
+				&sr_screen_size
 			);
 
 			SetConsoleCursorPosition(
 				h_console_buffer,
 				{ 0, 0 }
 			);
-
 		}
 		else
 		{
