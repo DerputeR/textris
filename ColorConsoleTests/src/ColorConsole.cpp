@@ -48,6 +48,9 @@ ColorConsoleInput::Key input_keys[input_count] = {
 HANDLE console_window;
 HANDLE foreground_window;
 
+// glyphs
+const wchar_t* glyph_blocks = L"█▓▒░";
+
 // unsafe but i don't care
 void ReplaceChars(char* string, char* replace, int start, int len)
 {
@@ -77,15 +80,26 @@ void ReplaceCharInfo(CHAR_INFO* ci, wchar_t* replace, int start, int len)
 	}
 }
 
+void GenerateColorSwatches(CHAR_INFO* buffer)
+{
+	// fixed x, y
+	for (int y = 0; y < 30; y++)
+	{
+		for (int x = 0; x < 8 * 4; x++)
+		{
+			buffer[y * screen_width + (2 * x)].Char.UnicodeChar = glyph_blocks[x % 4];
+			buffer[y * screen_width + (2 * x + 1)].Char.UnicodeChar = glyph_blocks[x % 4];
+		}
+	}
+}
+
 int main()
 {
-	wchar_t* screen = new wchar_t[screen_width * screen_height];
 	CHAR_INFO* screen_data = new CHAR_INFO[screen_width * screen_height];
 	for (int i = 0; i < screen_width * screen_height; i++)
 	{
-		screen[i] = L' ';
 		screen_data[i].Char.UnicodeChar = L' ';
-		screen_data[i].Attributes = FOREGROUND_INTENSITY | FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE;
+		screen_data[i].Attributes = color_default;
 	}	
 
 	// console buffer setup
@@ -215,11 +229,11 @@ int main()
 		/// OUTPUT
 		if (use_console_buffer)
 		{
+			/*
 			for (int i = 0; i < screen_width * screen_height; i++)
 			{
 				if (i < buffer_size)
 				{
-					screen[i] = L"█▓▒░"[i % 4];
 					screen_data[i].Char.UnicodeChar = L"█▓▒░"[i % 4];
 					if (i >= color_start_index && i < color_start_index + color_length)
 					{
@@ -232,10 +246,12 @@ int main()
 				}
 				else
 				{
-					screen[i] = L' ';
 					screen_data[i].Char.UnicodeChar = L' ';
 				}
 			}
+			*/
+
+			GenerateColorSwatches(screen_data);
 
 			wchar_t wchar_label[] = L"Buffer size: %-4d";
 			// https://stackoverflow.com/questions/2342162/stdstring-formatting-like-sprintf
@@ -253,7 +269,6 @@ int main()
 				buffer_size
 			); // null char is still written, but now we know exactly where it is
 
-			ReplaceChars(screen, wchar_label, 0, format_size - 1);
 			ReplaceCharInfo(screen_data, wchar_label, screen_width - (format_size - 1), format_size - 1);
 
 			WriteConsoleOutput(
@@ -263,15 +278,6 @@ int main()
 				{ 0, 0 },
 				&sr_screen_size
 			);
-
-			SetConsoleCursorPosition(
-				h_console_buffer,
-				{ 0, 0 }
-			);
-		}
-		else
-		{
-			
 		}
 	}
 
