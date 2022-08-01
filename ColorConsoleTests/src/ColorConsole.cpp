@@ -48,6 +48,10 @@ ColorConsoleInput::Key input_keys[input_count] = {
 HANDLE console_window;
 HANDLE foreground_window;
 
+// timing
+std::chrono::steady_clock::time_point t1, t2;
+std::chrono::duration<double> deltaTime;
+
 // glyphs
 const wchar_t* glyph_blocks = L"█▓▒░";
 
@@ -251,6 +255,8 @@ int main()
 			}
 			*/
 
+			t1 = std::chrono::steady_clock::now();
+
 			GenerateColorSwatches(screen_data);
 
 			wchar_t wchar_label[] = L"Buffer size: %-4d";
@@ -278,6 +284,10 @@ int main()
 				{ 0, 0 },
 				&sr_screen_size
 			);
+
+			t2 = std::chrono::steady_clock::now();
+			deltaTime = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+			SetConsoleTitleA(("DT: " + std::to_string(deltaTime.count()) + "; FPS: " + std::to_string(1 / deltaTime.count())).data());
 		}
 	}
 
