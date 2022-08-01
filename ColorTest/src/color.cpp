@@ -4,6 +4,7 @@
 #include <string>
 #include <iostream>
 #include "ColorConversions.h"
+#include <vector>
 struct Color
 {
     int r;
@@ -20,8 +21,12 @@ std::string GetColorStr(const Color& fgColor, const Color& bgColor)
 
 std::wstring GetColorWStr(const Color& fgColor, const Color& bgColor)
 {
-    std::wstring fgStr = L"\x1b[38;2;" + std::to_wstring(fgColor.r) + L";" + std::to_wstring(fgColor.g) + L";" + std::to_wstring(fgColor.b) + L"m";
-    std::wstring bgStr = L"\x1b[48;2;" + std::to_wstring(bgColor.r) + L";" + std::to_wstring(bgColor.g) + L";" + std::to_wstring(bgColor.b) + L"m";
+    // std::wstring fgStr = L"\x1b[38;2;" + std::to_wstring(fgColor.r) + L";" + std::to_wstring(fgColor.g) + L";" + std::to_wstring(fgColor.b) + L"m";
+    std::wstring fgStr = L"\x1b[38;2;000;000;000";
+    swprintf(&fgStr[0], 19, L"\x1b[38;2;%03d;%03d;%03d", fgColor.r, fgColor.g, fgColor.b);
+    // std::wstring bgStr = L"\x1b[48;2;" + std::to_wstring(bgColor.r) + L";" + std::to_wstring(bgColor.g) + L";" + std::to_wstring(bgColor.b) + L"m";
+    std::wstring bgStr = L"\x1b[48;2;000;000;000";
+    swprintf(&bgStr[0], 19, L"\x1b[48;2;%03d;%03d;%03d", bgColor.r, bgColor.g, bgColor.b);
     return fgStr + bgStr;
 }
 
@@ -47,17 +52,23 @@ int main()
     // SetConsoleCP(65001);
     // SetConsoleOutputCP(65001);
 
+    std::wstring screenBuffer_chars;
+    std::wstring screenBuffer_colors;
+    std::wstring screenBuffer_all;
+
+    size_t totalColorStringSize = 0;
 
     for (int x = 0; x < 256; x++)
     {
         std::wstring wBlock = L"██";
         std::wstring startStr = GetColorWStr({ x, x, x }, { x, x, x });
-        std::wstring resetStr = GetColorWStr({ 0, 0, 0 }, { 0, 0, 0 });
-        // this is some weird shit
-        wprintf((startStr + resetStr).data());
-        WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), (wBlock).data(), 2, NULL, NULL);
+        screenBuffer_all += startStr + wBlock;
+        totalColorStringSize += startStr.size();
     }
-        
+    // this is even weirder shit
+    WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), (screenBuffer_all).data(), screenBuffer_all.size(), NULL, NULL);
+    
+    /*
     for (float s = 0; s <= 1; s += 0.05f)
     {
         for (int h = 0; h < 360; h++)
@@ -78,25 +89,7 @@ int main()
             }
         }
     }
-    
-    //for (int r = 0; r < 256; r++)
-    //{
-    //    for (int g = 0; g < 256; g++)
-    //    {
-    //        for (int b = 0; b < 256; b++)
-    //        {
-    //            std::wstring wBlock = L"██";
-    //            std::wstring startStr = GetColorWStr({ r, g, b }, { 0, 0, 0 });
-    //            // std::wstring resetStr = GetColorWStr({ r, g, b }, { 0, 0, 0 });
-    //            // this is some weird shit
-    //            wprintf((startStr + wBlock).data());
-    //            // wprintf((startStr + wBlock + resetStr).data());
-    //            WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), (wBlock).data(), 2, NULL, NULL);
-
-    //        }
-    //    }
-    //}
-    
+    */
     
     printf((GetColorStr({0, 255, 255}, {10, 5, 60}) + "Hello World\n" + GetColorStr({ 204, 204, 204 }, { 12, 12, 12 })).data());
     printf((GetColorStr({ 0, 255, 255 }, { 10, 5, 60 }) + "Hello World\n" + GetColorStr({ 204, 204, 204 }, { 12, 12, 12 })).data());
