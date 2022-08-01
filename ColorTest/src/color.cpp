@@ -22,11 +22,11 @@ std::string GetColorStr(const Color& fgColor, const Color& bgColor)
 std::wstring GetColorWStr(const Color& fgColor, const Color& bgColor)
 {
     // std::wstring fgStr = L"\x1b[38;2;" + std::to_wstring(fgColor.r) + L";" + std::to_wstring(fgColor.g) + L";" + std::to_wstring(fgColor.b) + L"m";
-    std::wstring fgStr = L"\x1b[38;2;000;000;000";
-    swprintf(&fgStr[0], 19, L"\x1b[38;2;%03d;%03d;%03d", fgColor.r, fgColor.g, fgColor.b);
+    std::wstring fgStr = L"\x1b[38;2;000;000;000m";
+    swprintf(&fgStr[0], 20, L"\x1b[38;2;%03d;%03d;%03dm", fgColor.r, fgColor.g, fgColor.b);
     // std::wstring bgStr = L"\x1b[48;2;" + std::to_wstring(bgColor.r) + L";" + std::to_wstring(bgColor.g) + L";" + std::to_wstring(bgColor.b) + L"m";
-    std::wstring bgStr = L"\x1b[48;2;000;000;000";
-    swprintf(&bgStr[0], 19, L"\x1b[48;2;%03d;%03d;%03d", bgColor.r, bgColor.g, bgColor.b);
+    std::wstring bgStr = L"\x1b[48;2;000;000;000m";
+    swprintf(&bgStr[0], 20, L"\x1b[48;2;%03d;%03d;%03dm", bgColor.r, bgColor.g, bgColor.b);
     return fgStr + bgStr;
 }
 
