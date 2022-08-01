@@ -2,6 +2,8 @@
 
 #include <Windows.h>
 #include <string>
+#include <iostream>
+#include "ColorConversions.h"
 struct Color
 {
     int r;
@@ -41,50 +43,66 @@ int main()
 
     dwMode |= ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
     SetConsoleMode(hOut, dwMode);
-    
-    /*
-    for (int r = 0; r < 256; r++)
+
+    // SetConsoleCP(65001);
+    // SetConsoleOutputCP(65001);
+
+
+    for (int x = 0; x < 256; x++)
     {
-        for (int g = 0; g < 256; g++)
+        std::wstring wBlock = L"██";
+        std::wstring startStr = GetColorWStr({ x, x, x }, { x, x, x });
+        std::wstring resetStr = GetColorWStr({ 0, 0, 0 }, { 0, 0, 0 });
+        // this is some weird shit
+        wprintf((startStr + resetStr).data());
+        WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), (wBlock).data(), 2, NULL, NULL);
+    }
+        
+    for (float s = 0; s <= 1; s += 0.05f)
+    {
+        for (int h = 0; h < 360; h++)
         {
-            for (int b = 0; b < 256; b++)
+            for (float v = 0; v <= 1; v += 0.05f)
             {
-                wchar_t wBlock[] = L"%lsTEST%ls";
-                // wchar_t wBlock[] = L"TEST";
-                std::wstring fgStr = GetFGColorWStr({ r,g,b }, { 0,0,0 });
-                std::wstring bgStr = GetBGColorWStr({ r,g,b }, { 0,0,0 });
+                int r = 0, g = 0, b = 0;
+                HSVtoRGB_Int(&r, &g, &b, h, s, v);
 
-                // https://stackoverflow.com/questions/2342162/stdstring-formatting-like-sprintf
-                // Below is a very raw, unsafe version of the above post
-                int fSize = swprintf( 
-                    nullptr,
-                    0,
-                    wBlock,
-                    fgStr, bgStr
-                ) + 1; // extra space for the would-be '\0'
-                
-                swprintf(
-                    &wBlock[0],
-                    fSize,
-                    wBlock,
-                    fgStr, bgStr
-                ); // null char is still written, but now we know exactly where it 
-                
 
-                // ReplaceChars(screen_data, wchar_label, screen_width - (format_size - 1), format_size - 1);
-                // wprintf((GetColorWStr({ r, g, b }, { 0, 0, 0 }) + L"██").data());
-                // wprintf(L"%s", "██");
-                LPDWORD d = 0;
-                WriteConsole(hOut, wBlock, fSize, d, NULL);
+                std::wstring wBlock = L"╬ ";
+                std::wstring startStr = GetColorWStr({ 0, 0, 0 }, { r, g, b });
+                std::wstring resetStr = GetColorWStr({ 204, 204, 204 }, { 12, 12, 12 });
+                wprintf((startStr).data());
+                WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), (wBlock).data(), 2, NULL, NULL);
+                wprintf((resetStr).data());
+
             }
         }
     }
+    
+    //for (int r = 0; r < 256; r++)
+    //{
+    //    for (int g = 0; g < 256; g++)
+    //    {
+    //        for (int b = 0; b < 256; b++)
+    //        {
+    //            std::wstring wBlock = L"██";
+    //            std::wstring startStr = GetColorWStr({ r, g, b }, { 0, 0, 0 });
+    //            // std::wstring resetStr = GetColorWStr({ r, g, b }, { 0, 0, 0 });
+    //            // this is some weird shit
+    //            wprintf((startStr + wBlock).data());
+    //            // wprintf((startStr + wBlock + resetStr).data());
+    //            WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), (wBlock).data(), 2, NULL, NULL);
 
-    */
+    //        }
+    //    }
+    //}
+    
+    
     printf((GetColorStr({0, 255, 255}, {10, 5, 60}) + "Hello World\n" + GetColorStr({ 204, 204, 204 }, { 12, 12, 12 })).data());
-    wprintf((GetColorWStr({ 0, 255, 255 }, { 10, 5, 60 }) + L"Hello World\n" + GetColorWStr({ 204, 204, 204 }, { 12, 12, 12 })).data());
+    printf((GetColorStr({ 0, 255, 255 }, { 10, 5, 60 }) + "Hello World\n" + GetColorStr({ 204, 204, 204 }, { 12, 12, 12 })).data());
 
-    WriteConsoleW(hOut, (GetColorStr({ 0, 255, 255 }, { 10, 5, 60 }) + "Hello World\n").data(), 100, NULL, NULL);
+    wprintf((GetColorWStr({ 0, 255, 255 }, { 10, 5, 60 }) + L"Hello World\n" + GetColorWStr({ 204, 204, 204 }, { 12, 12, 12 })).data());
+    wprintf((GetColorWStr({ 0, 255, 255 }, { 10, 5, 60 }) + L"██e\n" + GetColorWStr({ 204, 204, 204 }, { 12, 12, 12 })).data());
 
     system("pause");
 }
