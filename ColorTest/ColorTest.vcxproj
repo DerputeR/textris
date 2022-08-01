@@ -133,9 +133,11 @@
   <ItemGroup>
     <ClCompile Include="src\color.cpp" />
     <ClCompile Include="src\ColorConversions.cpp" />
+    <ClCompile Include="src\ScrappyCharFuncs.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\ColorConversions.h" />
+    <ClInclude Include="src\ScrappyCharFuncs.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

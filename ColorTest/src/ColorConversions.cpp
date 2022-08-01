@@ -108,3 +108,8 @@ void HSVtoRGB_Int(int* r, int* g, int* b, float h, float s, float v)
 	*g = (int)(fg * 255);
 	*b = (int)(fb * 255);
 }
+
+int RGBIntsToInt(int r, int g, int b)
+{
+	return (r << 16) + (g << 8) + b;
+}

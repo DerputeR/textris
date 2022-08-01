@@ -6,6 +6,7 @@
 #include "ColorConversions.h"
 #include <vector>
 #include <chrono>
+#include "ScrappyCharFuncs.h"
 struct Color
 {
     int r;
@@ -31,16 +32,56 @@ std::wstring GetColorWStr(const Color& fgColor, const Color& bgColor)
     return fgStr + bgStr;
 }
 
-void ReplaceChars(wchar_t* string, wchar_t* replace, int start, int len)
+size_t GetColorWStrFG(const Color& fgColor, std::wstring& fgStr)
 {
-    for (int i = 0; i < len; i++)
-    {
-        string[i + start] = replace[i];
-    }
+    // fgStr = L"\x1b[38;2;000;000;000m";
+    // swprintf(&fgStr[0], 20, L"\x1b[38;2;%03d;%03d;%03dm", fgColor.r, fgColor.g, fgColor.b);
+    fgStr = L"\x1b[38;2;" + std::to_wstring(fgColor.r) + L";" + std::to_wstring(fgColor.g) + L";" + std::to_wstring(fgColor.b) + L"m";
+    return fgStr.size();
+}
+
+size_t GetColorWStrBG(const Color& bgColor, std::wstring& bgStr)
+{
+    bgStr = L"\x1b[48;2;000;000;000m";
+    swprintf(&bgStr[7], 13, L"%03d;%03d;%03dm", bgColor.r, bgColor.g, bgColor.b);
+    return bgStr.size();
 }
 
 int main()
 {
+    std::chrono::steady_clock::time_point p1, p2, p3;
+    using sec = std::chrono::duration<double, std::ratio<1,1>>;
+    double dt1, dt2;
+
+    double callTimes = 0;
+    double callTimes2 = 0;
+
+    std::wstring testCall;
+    std::wstring testCall2;
+
+    for (int i = 0; i < 5000; i++)
+    {
+        int r = rand() % 256;
+        int g = rand() % 256;
+        int b = rand() % 256;
+
+        // Test Call
+        p1 = std::chrono::steady_clock::now();
+        size_t testCallSize = GetColorWStrFG({ r,g,b }, testCall);
+        p2 = std::chrono::steady_clock::now();
+        size_t testCallSize2 = GetColorWStrBG({ r,g,b }, testCall2);
+        p3 = std::chrono::steady_clock::now();
+
+        dt1 = std::chrono::duration_cast<sec>(p2 - p1).count();
+        dt2 = std::chrono::duration_cast<sec>(p3 - p2).count();
+
+        callTimes += dt1;
+        callTimes2 += dt2;
+    }
+
+    callTimes /= 5000;
+    callTimes2 /= 5000;
+
     // Set output mode to handle virtual terminal sequences
     HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -52,22 +93,6 @@ int main()
 
     // SetConsoleCP(65001);
     // SetConsoleOutputCP(65001);
-
-    std::wstring screenBuffer_chars;
-    std::wstring screenBuffer_colors;
-    std::wstring screenBuffer_all;
-
-    size_t totalColorStringSize = 0;
-
-    for (int x = 0; x < 256; x++)
-    {
-        std::wstring wBlock = L"██";
-        std::wstring startStr = GetColorWStr({ x, x, x }, { x, x, x });
-        screenBuffer_all += startStr + wBlock;
-        totalColorStringSize += startStr.size(); // += 38 each time
-    }
-    // this is even weirder shit
-    WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), (screenBuffer_all).data(), screenBuffer_all.size(), NULL, NULL);
 
     /*
     for (float s = 0; s <= 1; s += 0.05f)
@@ -92,51 +117,83 @@ int main()
     }
     */
 
-    // worst case; testing a 1920x1080, 1x1 pixel char, no same colors next to each other horizontally
-    std::wstring big_buffer((38 + 1) * (1920 * 1080), L' ');
     std::chrono::steady_clock::time_point t1, t2, t3;
-    printf((GetColorStr({ 204, 204, 204 }, { 12, 12, 12 }) + "The 1080p buffer is %zd chars long, consuming %zd bytes\n").data(), big_buffer.size(), sizeof(big_buffer[0]) * big_buffer.size());
-    
-    t1 = std::chrono::steady_clock::now();
 
-    /// STRING REPLACE TEST - pass (does not reallocate as long as replacement size <= orig size)
-    // std::string originalStr = "Heeeeearara!!eraraee";
-    // originalStr.replace(0, 4, "EE!!");
-
-
-    // print this ridiculous thing
-    
-    
     int colorStrSize_noNull = 38;
     int bufferSizeUsed = 0;
-    int height = 20;
-    int width = 80;
+    int height = 30;
+    int width = 100;
 
-    big_buffer = std::wstring((38 + 1) * (width * height), L' ');
+    int lastAppliedRGB = 0;
+    int currentAppliedRGB = 0;
+    int nextInsertPoint = 0;
 
+    wchar_t* bigBufferC = new wchar_t[(38 + 1) * (width * height)];
+    wchar_t* currentChar = new wchar_t[39];
+
+    t1 = std::chrono::steady_clock::now();
 
     for (int y = 0; y < height; y++)
     {
         for (int x = 0; x < width; x++)
         {
+            lastAppliedRGB = currentAppliedRGB;
+
             int charPos = y * width + x;
 
             float h = ((float) charPos / (height * width)) * 360.0f;
+            h = ((int)(h / 30)) * 30.0f;
             float s = 1, v = 1;
             int r = 0, g = 0, b = 0;
             HSVtoRGB_Int(&r, &g, &b, h, s, v);
 
-            std::wstring charStr = L"░";
-            std::wstring colorStr = GetColorWStr({ 0, 0, 0 }, { r, g, b });
-            
-            big_buffer.replace(charPos * (colorStrSize_noNull + 1), (colorStrSize_noNull + 1), colorStr + charStr);
+            currentAppliedRGB = RGBIntsToInt(r, g, b);
+            if (currentAppliedRGB != lastAppliedRGB)
+            {
+                std::wstring colorStr = GetColorWStr({ 0, 0, 0 }, { r, g, b });
+                ScrappyCharFuncs::ReplaceChars(
+                    currentChar,
+                    &colorStr[0],
+                    0,
+                    38
+                );
+                currentChar[38] = L'░';
+                ScrappyCharFuncs::ReplaceChars(
+                    bigBufferC,
+                    currentChar,
+                    nextInsertPoint,
+                    (colorStrSize_noNull + 1)
+                );
+                nextInsertPoint += colorStrSize_noNull + 1;
+            }
+            else
+            {
+                currentChar[0] = L'░';
+                ScrappyCharFuncs::ReplaceChars(
+                    bigBufferC,
+                    currentChar,
+                    nextInsertPoint,
+                    1
+                );
+                nextInsertPoint += 1;
+            }
 
-            bufferSizeUsed += 1 + colorStrSize_noNull;
+            
+            
+            /*ScrappyCharFuncs::ReplaceChars(
+                bigBufferC,
+                &(colorStr + charStr)[0],
+                charPos * (colorStrSize_noNull + 1),
+                (colorStrSize_noNull + 1)
+            );*/
+            // bufferSizeUsed += 1 + colorStrSize_noNull;
         }
     }
+    bufferSizeUsed = nextInsertPoint;
     t2 = std::chrono::steady_clock::now();
 
-    WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), (big_buffer).data(), bufferSizeUsed, NULL, NULL);
+    WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), bigBufferC, bufferSizeUsed, NULL, NULL);
+    // wprintf(bigBufferC);
 
     t3 = std::chrono::steady_clock::now();
 
@@ -148,4 +205,6 @@ int main()
     SetConsoleTitleA(("DT: " + std::to_string((deltaTime1 + deltaTime2).count()) + "; FPS: " + std::to_string(1 / (deltaTime1 + deltaTime2).count())).data());
 
     system("pause");
+
+    delete[] bigBufferC;
 }

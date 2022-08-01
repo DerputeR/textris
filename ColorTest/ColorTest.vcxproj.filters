@@ -21,9 +21,15 @@
     <ClCompile Include="src\ColorConversions.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\ScrappyCharFuncs.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\ColorConversions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ScrappyCharFuncs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
