@@ -233,7 +233,7 @@ int main()
 		/// OUTPUT
 		if (use_console_buffer)
 		{
-			/*
+			
 			for (int i = 0; i < screen_width * screen_height; i++)
 			{
 				if (i < buffer_size)
@@ -253,7 +253,7 @@ int main()
 					screen_data[i].Char.UnicodeChar = L' ';
 				}
 			}
-			*/
+			
 
 			t1 = std::chrono::steady_clock::now();
 
