@@ -76,6 +76,7 @@ int main()
     int iterations = 0;
     double totalTime = 0;
     std::chrono::steady_clock::time_point t1, t2, t3;
+    double avgFPS = 0;
 
     // SetConsoleCP(65001);
     // SetConsoleOutputCP(65001);
@@ -137,7 +138,7 @@ int main()
     // very slow, but 24-bit color!
     i_counter = 0;
     iterations = 0;
-    do
+    while (iterations == -1 || i_counter < iterations)
     {
         t1 = std::chrono::steady_clock::now();
 
@@ -216,11 +217,14 @@ int main()
         SetConsoleTitleA(("DT: " + std::to_string((deltaTime1 + deltaTime2).count()) + "; FPS: " + std::to_string(1 / (deltaTime1 + deltaTime2).count())).data());
         i_counter++;
         totalTime += deltaTime1.count() + deltaTime2.count();
-    } while (i_counter < iterations);
-    double avgFPS = iterations / totalTime;
-    printf((GetColorStr({ 204, 204, 204 }, { 12, 12, 12 }) + "Average FPS over %d frames: %F\n").data(), iterations, avgFPS);
+    }
+    if (iterations != 0)
+    {
+        avgFPS = iterations / totalTime;
+        printf((GetColorStr({ 204, 204, 204 }, { 12, 12, 12 }) + "Average FPS over %d frames: %F\n").data(), iterations, avgFPS);
+        system("pause");
+    }
     delete[] bigBufferC;
-    system("pause");
 
     system("cls");
 
@@ -230,7 +234,7 @@ int main()
     i_counter = 0;
     iterations = 0;
     totalTime = 0;
-    do
+    while (iterations == -1 || i_counter < iterations)
     {
         SetConsoleCursorPosition(hOut, { 0, 0 });
 
@@ -292,20 +296,23 @@ int main()
         SetConsoleTitleA(("DT: " + std::to_string((deltaTime1).count()) + "; FPS: " + std::to_string(1 / (deltaTime1).count())).data());
         i_counter++;
 
-    } while (i_counter < iterations);
-    avgFPS = iterations / totalTime;
-    printf((GetColorStr({ 204, 204, 204 }, { 12, 12, 12 }) + "Average FPS over %d frames: %F\n").data(), iterations, avgFPS);
+    }
+    if (iterations != 0)
+    {
+        avgFPS = iterations / totalTime;
+        printf((GetColorStr({ 204, 204, 204 }, { 12, 12, 12 }) + "Average FPS over %d frames: %F\n").data(), iterations, avgFPS);
+        system("pause");
+    }
     delete[] currentChar;
-    system("pause");
 
     // ! Alternate WriteConsole Benchmark 2
     bigBufferC = new wchar_t[(19 + 1) * (width * height)];
     i_counter = 0;
-    iterations = -1;
+    iterations = 0;
     totalTime = 0;
     int angle = 0;
     const double pi = 3.14159265358979323846;
-    do
+    while (iterations == -1 || i_counter < iterations)
     {
         SetConsoleCursorPosition(hOut, { 0, 0 });
         int nextIndex = 0;
@@ -356,32 +363,35 @@ int main()
             i_counter++;
         angle = (angle + 1) % 360;
 
-    } while (iterations == -1 || i_counter < iterations);
-    avgFPS = iterations / totalTime;
-    printf((GetColorStr({ 204, 204, 204 }, { 12, 12, 12 }) + "Average FPS over %d frames: %F\n").data(), iterations, avgFPS);
+    }
+    if (iterations != 0)
+    {
+        avgFPS = iterations / totalTime;
+        printf((GetColorStr({ 204, 204, 204 }, { 12, 12, 12 }) + "Average FPS over %d frames: %F\n").data(), iterations, avgFPS);
+        system("pause");
+    }
     delete[] bigBufferC;
-    system("pause");
 
     // ! WriteConsoleOut Benchmark
     // ? this prints weirdly and causes a crash when resizing...
     SetConsoleActiveScreenBuffer(hOut);
     CHAR_INFO* screen_data = new CHAR_INFO[width * height];
     i_counter = 0;
-    iterations = 60;
+    iterations = 100;
     totalTime = 0;
-    do
+    while (iterations == -1 || i_counter < iterations)
     {
         t1 = std::chrono::steady_clock::now();
 
         for (int i = 0; i < width * height; i++)
         {
-            screen_data[i].Char.UnicodeChar = L'a' + i;
+            screen_data[i].Char.UnicodeChar = L"█▓▒░▒▓"[i % 6];
             screen_data[i].Attributes = i;
         }
         WriteConsoleOutputW(
             hOut,
             screen_data,
-            { (short)width, (short)height },
+            { (short)(width * height), 1},
             { 0, 0 },
             &sr
         );
@@ -394,12 +404,13 @@ int main()
         printf((GetColorStr({ 204, 204, 204 }, { 12, 12, 12 }) + "Time to WriteConsoleOutput: %F\n").data(), deltaTime1.count());
         SetConsoleTitleA(("DT: " + std::to_string((deltaTime1).count()) + "; FPS: " + std::to_string(1 / (deltaTime1).count())).data());
     }
-    while (i_counter < iterations);
-    avgFPS = iterations / totalTime;
-    printf((GetColorStr({ 204, 204, 204 }, { 12, 12, 12 }) + "Average FPS over %d frames: %F\n").data(), iterations, avgFPS);
+    if (iterations != 0)
+    {
+        avgFPS = iterations / totalTime;
+        printf((GetColorStr({ 204, 204, 204 }, { 12, 12, 12 }) + "Average FPS over %d frames: %F\n").data(), iterations, avgFPS);
+        system("pause");
+    }
     delete[] screen_data;
-
-    system("pause");
     // system("cls");
 
     t2 = std::chrono::steady_clock::now();
