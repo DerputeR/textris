@@ -30,28 +30,72 @@ bool bLockedScreenSize = false;
 unsigned char* pField = nullptr;
 
 // todo: reference https://brianrackle.github.io/update/c++/2014/08/03/easy-timing/
-const int TICKRATE = 20;
-double delta_time = 0.0;
+const int TICKRATE = 60;
+double dDeltaTime = 0.0;
+double dAccumulator_FrameTime = 0.0;
+double dTimeToSleep = 0.0;
 
+std::chrono::time_point<std::chrono::steady_clock, std::chrono::duration<double, std::milli>> start;
+std::chrono::time_point<std::chrono::steady_clock, std::chrono::duration<double, std::milli>> end;
+std::chrono::duration<double, std::milli> miliseconds_elapsed{ 0 };
+
+/// Input setup
+struct Key
+{
+	int keycode;
+	bool pressed = false;
+	bool holding = false;
+	double dAccumulator_KeyRepeatDelay = 0.0;
+	double dAccumulator_KeyRepeatRate = 0.0;
+	float fKeyRepeatDelay = 170.0f;
+	float fKeyRepeatRate = 50.0f;
+
+	Key(int keycode, float repeatDelay = 170.0f, float repeatRate = 50.0f)
+		: keycode{ keycode }, fKeyRepeatDelay{ repeatDelay }, fKeyRepeatRate{ repeatRate }
+	{ }
+
+	void UpdateKey(bool activated)
+	{
+		if (activated)
+		{
+			if (pressed)
+			{
+				holding = true;
+			}
+			pressed = true;
+		}
+		else
+		{
+			pressed = false;
+			holding = false;
+		}
+	}
+
+private:
+	Key();
+};
+
+HANDLE console_window = GetConsoleWindow();
+HANDLE foreground_window = GetForegroundWindow();
 
 void InitPieces(std::wstring (& tetrominos)[TETROMINO_COUNT])
 {
 	/// Create assets
 	// TODO: update piece bounding box and rotation system to satisfy SRS
 	// https://tetris.fandom.com/wiki/SRS
-	tetrominos[0].append(L"..X.");
-	tetrominos[0].append(L"..X.");
-	tetrominos[0].append(L"..X.");
-	tetrominos[0].append(L"..X.");
+	tetrominos[0].append(L"....");
+	tetrominos[0].append(L"XXXX");
+	tetrominos[0].append(L"....");
+	tetrominos[0].append(L"....");
 
-	tetrominos[1].append(L"..X.");
+	tetrominos[1].append(L"....");
 	tetrominos[1].append(L".XX.");
-	tetrominos[1].append(L".X..");
+	tetrominos[1].append(L"..XX");
 	tetrominos[1].append(L"....");
 
-	tetrominos[2].append(L".X..");
+	tetrominos[2].append(L"....");
+	tetrominos[2].append(L"..XX");
 	tetrominos[2].append(L".XX.");
-	tetrominos[2].append(L"..X.");
 	tetrominos[2].append(L"....");
 
 	tetrominos[3].append(L"....");
@@ -59,20 +103,20 @@ void InitPieces(std::wstring (& tetrominos)[TETROMINO_COUNT])
 	tetrominos[3].append(L".XX.");
 	tetrominos[3].append(L"....");
 
+	tetrominos[4].append(L"....");
 	tetrominos[4].append(L"..X.");
-	tetrominos[4].append(L".XX.");
-	tetrominos[4].append(L"..X.");
+	tetrominos[4].append(L".XXX");
 	tetrominos[4].append(L"....");
 
 	tetrominos[5].append(L"....");
-	tetrominos[5].append(L".XX.");
 	tetrominos[5].append(L"..X.");
-	tetrominos[5].append(L"..X.");
+	tetrominos[5].append(L"XXX.");
+	tetrominos[5].append(L"....");
 
 	tetrominos[6].append(L"....");
-	tetrominos[6].append(L".XX.");
 	tetrominos[6].append(L".X..");
-	tetrominos[6].append(L".X..");
+	tetrominos[6].append(L".XXX");
+	tetrominos[6].append(L"....");
 }
 
 int ConvertToRotatedIndex(int px, int py, int r)
@@ -173,6 +217,11 @@ void TracePieceToBottom(int& piece, int& rotation, int& x, int& y)
 	}
 }
 
+float CalculateGravityTimeMS(int level)
+{
+	return pow(0.8 - ((level - 1) * 0.007f), level - 1) * 1000.0f;
+}
+
 int main()
 {
 	srand(time(NULL));
@@ -246,7 +295,11 @@ int main()
 	// TODO: game pausing
 	bool bPaused = false;
 	int nScore = 0;
-	int nPiecesDelivered = 0;
+	int nLevel = 1;
+	int nLinesCleared = 0;
+	int nLinesJustCleared = 0;
+	bool bJustLocked = false;
+	int nCombo = -1;
 
 	int nCurrentPiece = 0;
 	int nCurrentRotation = 0;
@@ -257,116 +310,148 @@ int main()
 	int nGhostY = nCurrentY;
 
 	CreateNewPiece(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY);
+	
+	struct
+	{
+		const enum DROPTYPE: byte {
+			NONE,
+			SOFT,
+			HARD
+		};
+		byte dropType = NONE;
+		u_short rowsDropped = 0;
+		void reset()
+		{
+			dropType = NONE;
+			rowsDropped = 0;
+		}
+	} sDropData;
 
-	int nTicksPerDrop = 20;
-	int nDropTickCounter = 0;
+	// Timings (in ms)
 	bool bForceDown = false;
+
+	float fGravityTime = 1000.0f;
+	float fLockDelay = 500.0f;
+	float fRemovalTime = 500.0f;
+
+	double dAccumulator_Gravity = 0.0;
+	double dAccumulator_LockDelay = 0.0;
+	double dAccumulator_RemovalTime = -1.0;
 
 	// ? is this efficient? can we get away with a size 4 array?
 	std::vector<int> vLines;
-	int nTicksPerLine = 6;
-	int nLineTickCounter = 0;
+
+
 	bool bLinePause = false;
 
 	/// Input tracking
+	const int INPUT_COUNT = 8;
+	Key input_keys[INPUT_COUNT] = {
+		{VK_ESCAPE},
+		{VK_RETURN},
+		{VK_SPACE},
+		{VK_UP},
+		{VK_DOWN},
+		{VK_RIGHT},
+		{VK_LEFT},
+		{0x43} // C key
+	};
+	bool bKey[INPUT_COUNT]{};
+
+
 	// TODO better input mapping system
-	const int INPUT_COUNT = 5;
-	bool bKey[INPUT_COUNT];
-	// rotate button locking to make rotations happen ONLY on initial key press
-	bool bRotateHold = false;
-	// drop button locking to make drops happen ONLY on initial key press
-	bool bDropHold = false;
+
+	start = std::chrono::steady_clock::now();
+	end = std::chrono::steady_clock::now();
 
 	while (!bGameOver)
 	{
-		
 		/// GAME TIMING
-		// 50 mspt -> 20 tps
-		// TODO: implement delta-time to prevent slow-downs
-		std::this_thread::sleep_for(std::chrono::milliseconds(1000/TICKRATE));
-
-		if (!bLinePause)
-		{
-			nDropTickCounter++;
-		}
-		bForceDown = (nDropTickCounter >= nTicksPerDrop);
+		// 60 fps as per https://tetris.wiki/TGM_legend#Frame
+		start = end;
 
 		/// INPUT (no events, do this old-school style)
-		// pulled from other console project vids
-		for (int k = 0; k < INPUT_COUNT; k++)
+		foreground_window = GetForegroundWindow();
+		// only process inputs when the console is focused
+		if (foreground_window == console_window)
 		{
-			/*
-				loops thru array of 4 booleans representing the state of the keys
-				uses the AsyncKeyState which checks if the button is pressed
-				the function returns a short which acts as a BITFLAG
-				according to https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getasynckeystate
-				the most significant digit is 1 when the key is pressed; other bits may get set for other behavior,
-				but we only want the first digit, so we bitmask it with 0x8000 to get a zero or non-zero (false or true)
-				value for checking this specific bit
-																		 R   L   D   U	   _		
-				VK_RIGHT = 0x27
-				VK_LEFT = 0x25
-				VK_DOWN = 0x28
-				VK_UP = 0x26
-				VK_SPACE = 0x20
-			*/
-			// TODO: Move key mapping array out of here so it is only created once and can be remapped at runtime
-			bKey[k] = (0x8000 & GetAsyncKeyState((unsigned char)("\x27\x25\x28\x26\x20"[k])));
+			for (int k = 0; k < INPUT_COUNT; k++)
+			{
+				input_keys[k].UpdateKey(0x8000 & GetAsyncKeyState(input_keys[k].keycode));
+			}
 		}
 
 		/// GAME LOGIC
 		if (!bLinePause)
 		{
-			// if right key pressed
-			nCurrentX += (bKey[0] && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX + 1, nCurrentY)) ? 1 : 0;
-			// if left key pressed
-			nCurrentX += (bKey[1] && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX - 1, nCurrentY)) ? -1 : 0;
-			// if down key pressed
-			if (bKey[2])
+			sDropData.reset();
+
+			/// translate input state to action state
+			for (int i = 0; i < INPUT_COUNT; i++)
 			{
+				bKey[i] = false;
+				if (input_keys[i].pressed)
+				{
+					if (!input_keys[i].holding)
+					{
+						bKey[i] = true;
+					}
+					else
+					{
+						if (input_keys[i].dAccumulator_KeyRepeatDelay >= input_keys[i].fKeyRepeatDelay)
+						{
+							if (input_keys[i].dAccumulator_KeyRepeatRate >= input_keys[i].fKeyRepeatRate)
+							{
+								bKey[i] = true;
+								input_keys[i].dAccumulator_KeyRepeatRate = 0;
+							}
+						}
+					}
+				}
+			}
+			
+			// ? Very jank cancelation solution. Try not to use this in the rewrite.
+			// if right key pressed
+			nCurrentX += (bKey[5] && !input_keys[6].holding && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX + 1, nCurrentY)) ? 1 : 0;
+			// if left key pressed
+			nCurrentX += (bKey[6] && !input_keys[5].holding && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX - 1, nCurrentY)) ? -1 : 0;
+			// if down key pressed
+			if (bKey[4])
+			{
+				sDropData.dropType = sDropData.SOFT;
 				if (DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY + 1))
 				{
-					nCurrentY += 1;
-					nDropTickCounter = 0; // prevent gravity from firing while soft dropping
+					bForceDown = true;
+					sDropData.rowsDropped++;
 				}
 				else
 				{
 					// todo figure out what feels good for when the piece is at the bottom and you press/hold down
-					// bForceDown = true;
-					nDropTickCounter = nTicksPerDrop - nDropTickCounter > 5 ? max(nTicksPerDrop - 5, 0) : nDropTickCounter;
+					bForceDown = true;
 				}
 			}
 			// if rotate key pressed
-			if (bKey[3])
+			if (bKey[3] && !input_keys[3].holding)
 			{
-				nCurrentRotation += (!bRotateHold && DoesPieceFit(nCurrentPiece, nCurrentRotation + 1, nCurrentX, nCurrentY)) ? 1 : 0;
-				bRotateHold = true;
-			}
-			else // rotate lock
-			{
-				bRotateHold = false;
+				nCurrentRotation += DoesPieceFit(nCurrentPiece, nCurrentRotation + 1, nCurrentX, nCurrentY) ? 1 : 0;
 			}
 			// hard drop - we want it to drop from where we currently see it, not where it's going to be after this tick
-			if (bKey[4])
+			if (bKey[2] && !input_keys[2].holding)
 			{
-				if (!bDropHold)
-				{
-					nCurrentX = nGhostX;
-					nCurrentY = nGhostY;
-					bForceDown = true;
-					bDropHold = true;
-				}
-			}
-			else // hard drop lock
-			{
-				bDropHold = false;
+				dAccumulator_Gravity = 0;
+				bForceDown = true;
+				sDropData.dropType = sDropData.HARD;
+				sDropData.rowsDropped = nGhostY - nCurrentY;
+				nCurrentX = nGhostX;
+				nCurrentY = nGhostY;
+				dAccumulator_LockDelay = fLockDelay;
 			}
 		}
 
 		/// Line removal
 		if (!vLines.empty())
 		{
-			if (nLineTickCounter >= nTicksPerLine)
+			if (dAccumulator_RemovalTime >= fRemovalTime)
 			{
 				for (int row : vLines)
 				{
@@ -384,13 +469,17 @@ int main()
 					}
 				}
 				vLines.clear();
+				nLinesJustCleared = 0;
 				bLinePause = false;
-				nLineTickCounter = 0;
+				dAccumulator_RemovalTime = -1.0;
 			}
 			else
 			{
+				if (dAccumulator_RemovalTime < 0)
+				{
+					dAccumulator_RemovalTime = 0;
+				}
 				bLinePause = true;
-				nLineTickCounter++;
 			}
 		}
 
@@ -399,10 +488,13 @@ int main()
 		{
 			if (DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY + 1))
 			{
+				dAccumulator_Gravity = 0;
+				dAccumulator_LockDelay = 0;
 				nCurrentY++;
 			}
-			else
+			else if (dAccumulator_LockDelay >= fLockDelay)
 			{
+				bJustLocked = true; // to be consumed by the scoring system
 				/// lock current piece in the field
 				for (int px = 0; px < 4; px++)
 				{
@@ -413,13 +505,6 @@ int main()
 							pField[(nCurrentY + py) * nFieldWidth + (nCurrentX + px)] = nCurrentPiece + 1;
 						}
 					}
-				}
-
-				nPiecesDelivered++;
-				nScore += 25;
-				if (nPiecesDelivered % 10 == 0)
-				{
-					nTicksPerDrop -= nTicksPerDrop >= 10 ? 1 : 0;
 				}
 
 				/// do we have any horizontals? 
@@ -449,13 +534,13 @@ int main()
 							// add current row index to the vector to reference later for removal
 							// ! by our iteration order, this will add rows top-to-bottom, left-to-right in the vector
 							vLines.push_back(nCurrentY + py);
+							nCombo++;
+							nLinesCleared++;
+							nLinesJustCleared++;
 							bLinePause = true;
 						}
 					}
 				}
-
-				// the more lines in a row, the much higher score you get
-				nScore += vLines.empty() ? (1 << vLines.size()) : 0;
 
 				/// choose next piece
 				CreateNewPiece(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY);
@@ -463,7 +548,51 @@ int main()
 				/// if next piece can't spawn, game over
 				bGameOver = !DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY);
 			}
-			nDropTickCounter = 0;
+		}
+
+		// ! Scoring
+		// partial implementation as per https://tetris.wiki/Scoring
+		if (bJustLocked)
+		{
+			switch (nLinesJustCleared)
+			{
+			case 0: // combo break
+				nCombo = -1;
+				break;
+			case 1:
+				nScore += 100 * nLevel;
+			case 2:
+				nScore += 300 * nLevel;
+			case 3:
+				nScore += 500 * nLevel;
+			case 4:
+				nScore += 800 * nLevel;
+			default:
+				if (nCombo > 0)
+				{
+					nScore += 50 * nCombo * nLevel;
+				}
+			}
+			bJustLocked = false;
+		}
+
+		switch (sDropData.dropType)
+		{
+		case sDropData.SOFT:
+			nScore += sDropData.rowsDropped;
+			break;
+		case sDropData.HARD:
+			nScore += 2 * sDropData.rowsDropped;
+			break;
+		}
+
+		sDropData.rowsDropped = 0;
+
+		// update level
+		nLevel = 1 + nLinesCleared / 10;
+		if (nLevel <= 19)
+		{
+			fGravityTime = CalculateGravityTimeMS(nLevel);
 		}
 
 		/// GHOST PIECE
@@ -533,17 +662,6 @@ int main()
 			{
 				for (int py = 0; py < 4; py++)
 				{
-					//switch (nCurrentPiece)
-					//{
-					//case 0:
-					//case 1:
-					//case 2:
-					//case 3:
-					//case 4:
-					//case 5:
-					//case 6:
-					//default:
-					//}
 					if (tetrominos[nCurrentPiece][ConvertToRotatedIndex(px, py, nCurrentRotation)] == L'X')
 					{
 						// ghost piece draw
@@ -562,16 +680,10 @@ int main()
 			}
 		}
 
-		// Draw the score
-		// ! buffer size must be 16 since every string has a hidden \0 terminating character at the end
-		// 2 chars out from left, 2 rows down, 2 chars out from field
-		swprintf_s(&screen[2 + (2 * nScreenWidth) + 2 * nFieldWidth + 4], 16, L"Score: %-8d", nScore);
-		screen[2 + (2 * nScreenWidth) + 2 * nFieldWidth + 4 + 15] = L' '; // remove \0 char
-
 		// Draw the next upcoming piece
-		// 2 chars out from left, 4 rows down, 2 chars out from field
-		swprintf_s(&screen[2 + (4 * nScreenWidth) + 2 * nFieldWidth + 4], 12, L"Next piece:");
-		screen[2 + (4 * nScreenWidth) + 2 * nFieldWidth + 4 + 11] = L' '; // remove \0 char
+		// 2 chars out from left, 2 rows down, 2 chars out from field
+		swprintf_s(&screen[2 + (2 * nScreenWidth) + 2 * nFieldWidth + 4], 12, L"Next piece:");
+		screen[2 + (2 * nScreenWidth) + 2 * nFieldWidth + 4 + 11] = L' '; // remove \0 char
 		for (int px = 0; px < 4; px++)
 		{
 			for (int py = 0; py < 4; py++)
@@ -579,17 +691,38 @@ int main()
 				if (tetrominos[vCurrentPieces.back()][ConvertToRotatedIndex(px, py, 0)] == L'X')
 				{
 					// screen[((py + 6) * nScreenWidth) + (nFieldWidth + px + 6)] = CHAR_SET[vCurrentPieces.back() + 1];
-					screen[((py + 6) * nScreenWidth) + (2 * (nFieldWidth + px) + 6)] = CHAR_SET[vCurrentPieces.back() + 1];
-					screen[((py + 6) * nScreenWidth) + (2 * (nFieldWidth + px) + 1 + 6)] = CHAR_SET[vCurrentPieces.back() + 1];
+					screen[((py + 4) * nScreenWidth) + (2 * (nFieldWidth + px) + 6)] = CHAR_SET[vCurrentPieces.back() + 1];
+					screen[((py + 4) * nScreenWidth) + (2 * (nFieldWidth + px) + 1 + 6)] = CHAR_SET[vCurrentPieces.back() + 1];
 				}
 				else
 				{
 					// screen[((py + 6) * nScreenWidth) + (nFieldWidth + px + 6)] = L' ';
-					screen[((py + 6) * nScreenWidth) + (2 * (nFieldWidth + px) + 6)] = L'·';
-					screen[((py + 6) * nScreenWidth) + (2 * (nFieldWidth + px) + 1 + 6)] = L'·';
+					screen[((py + 4) * nScreenWidth) + (2 * (nFieldWidth + px) + 6)] = L'·';
+					screen[((py + 4) * nScreenWidth) + (2 * (nFieldWidth + px) + 1 + 6)] = L'·';
 				}
 			}
 		}
+
+		// Draw the score
+		// ! buffer size must be 16 since every string has a hidden \0 terminating character at the end
+		// 2 chars out from left, 9 rows down, 2 chars out from field
+		swprintf_s(&screen[2 + (9 * nScreenWidth) + 2 * nFieldWidth + 4], 16, L"Score: %-8d", nScore);
+		screen[2 + (9 * nScreenWidth) + 2 * nFieldWidth + 4 + 15] = L' '; // remove \0 char
+
+		// Draw the level number
+		// 2 chars out from left, 10 rows down, 2 chars out from field
+		swprintf_s(&screen[2 + (10 * nScreenWidth) + 2 * nFieldWidth + 4], 16, L"Level: %-8d", nLevel);
+		screen[2 + (10 * nScreenWidth) + 2 * nFieldWidth + 4 + 15] = L' '; // remove \0 char
+
+		// Draw the lines cleared
+		// 2 chars out from left, 11 rows down, 2 chars out from field
+		swprintf_s(&screen[2 + (11 * nScreenWidth) + 2 * nFieldWidth + 4], 16, L"Lines: %-8d", nLinesCleared);
+		screen[2 + (11 * nScreenWidth) + 2 * nFieldWidth + 4 + 15] = L' '; // remove \0 char
+
+		// Draw combo
+		// 2 chars out from left, 12 rows down, 2 chars out from field
+		swprintf_s(&screen[2 + (12 * nScreenWidth) + 2 * nFieldWidth + 4], 16, L"Combo: %-8d", nCombo + 1);
+		screen[2 + (12 * nScreenWidth) + 2 * nFieldWidth + 4 + 15] = L' '; // remove \0 char
 
 		// Display the frame
 		WriteConsoleOutputCharacterW(
@@ -598,5 +731,57 @@ int main()
 			nScreenWidth * nScreenHeight, 
 			{ 0, 0 }, 
 			&dwBytesWritten);
+
+		/// Timing
+		end = std::chrono::steady_clock::now();
+		miliseconds_elapsed = end - start;
+		dDeltaTime = miliseconds_elapsed.count();
+
+		// Add to accumulators
+		if (dAccumulator_RemovalTime > -1)
+		{
+			dAccumulator_RemovalTime = min(dAccumulator_RemovalTime + dDeltaTime, fRemovalTime);
+		}
+
+		if (!bLinePause)
+		{
+			dAccumulator_LockDelay = min(dAccumulator_LockDelay + dDeltaTime, fLockDelay);
+			dAccumulator_Gravity = min(dAccumulator_Gravity + dDeltaTime, fGravityTime);
+			bForceDown = (dAccumulator_Gravity >= fGravityTime);
+
+			for (int i = 0; i < INPUT_COUNT; i++)
+			{
+				if (input_keys[i].pressed)
+				{
+					input_keys[i].dAccumulator_KeyRepeatDelay = min(input_keys[i].dAccumulator_KeyRepeatDelay + dDeltaTime, input_keys[i].fKeyRepeatDelay);
+				}
+				if (input_keys[i].holding)
+				{
+					input_keys[i].dAccumulator_KeyRepeatRate = min(input_keys[i].dAccumulator_KeyRepeatRate + dDeltaTime, input_keys[i].fKeyRepeatRate);
+				}
+				else
+				{
+					input_keys[i].dAccumulator_KeyRepeatDelay = 0;
+					input_keys[i].dAccumulator_KeyRepeatRate = 0;
+				}
+			}
+		}
+
+		// Wrap up
+		end = std::chrono::steady_clock::now();
+		miliseconds_elapsed = end - start;
+		dDeltaTime = miliseconds_elapsed.count();
+
+		dTimeToSleep = (1000.0 / TICKRATE) - dDeltaTime;
+		if (dTimeToSleep > 0 && dTimeToSleep < 1000.0 / TICKRATE)
+		{
+			// std::this_thread::sleep_for<double, std::milli>(std::chrono::duration<double>(dTimeToSleep));
+			std::this_thread::sleep_for(std::chrono::milliseconds((int) dTimeToSleep));
+		}
 	}
+
+	CloseHandle(hConsole);
+	std::cout << "Game over! Score: " << nScore << std::endl;
+	std::cout << "Press <ENTER> to exit" << std::endl;
+	std::cin.get();
 }
